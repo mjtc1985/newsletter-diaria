@@ -263,6 +263,23 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 
 > If you use `opencode` and change agents in `.opencode/agent/`, restart OpenCode if you already have an active session.
 
+### Quick config reference
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `NEWSLETTER_LLM_BACKEND` | LLM family | `local-cli` |
+| `NEWSLETTER_LLM_CLI_COMMAND` | Local CLI to use | `gemini` |
+| `NEWSLETTER_OPENCODE_MODEL` | Model name for the local CLI | `gemini-3.1-pro-preview` in systemd |
+| `NEWSLETTER_LLM_MODEL` | Model for OpenAI-compatible mode | unset |
+| `NEWSLETTER_LLM_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
+| `NEWSLETTER_LLM_API_KEY` | OpenAI-compatible API key | unset |
+
+Morning run (the one used by systemd):
+
+```bash
+NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=gemini NEWSLETTER_OPENCODE_MODEL=gemini-3.1-pro-preview make newsletter-email
+```
+
 ### Option B — OpenAI-compatible API
 
 Useful when you want to use an API key directly instead of OpenCode.
