@@ -89,19 +89,43 @@ Nota: con Gmail suele hacer falta un **app password** si tienes 2FA.
 OpenCode no necesita configuración extra para esto: el binario Python lee `.smtpgmail.env` al arrancar.
 
 ## IA
-La IA corre vía **OpenCode instalado en el sistema**.
+The project supports two LLM backends:
 
-Por defecto el script hace `opencode run ...` usando el binario local.
+1. **OpenCode** (default)
+2. **OpenAI-compatible API**
 
-Variables útiles:
+### OpenCode backend
+By default the script runs `opencode run ...` using the local binary.
+
+Useful variables:
+- `NEWSLETTER_LLM_BACKEND=opencode`
 - `NEWSLETTER_OPENCODE_MODEL`
 
-Ejemplo:
+Example:
 ```bash
-PYTHONPATH=src python -m newsletter_diaria.main --ai-mode required
+PYTHONPATH=src python -m newsletter_diaria.main --ai-mode required --llm-backend opencode
 ```
 
-Nota: si añades o cambias agentes en `.opencode/agent/`, reinicia OpenCode si usas una sesión ya abierta.
+If you add or change agents in `.opencode/agent/`, restart OpenCode if you're using an already-open session.
+
+### OpenAI-compatible backend
+You can also use any OpenAI-compatible API endpoint directly with an API key.
+
+Useful variables:
+- `NEWSLETTER_LLM_BACKEND=openai-compatible`
+- `NEWSLETTER_LLM_MODEL`
+- `NEWSLETTER_LLM_BASE_URL`
+- `NEWSLETTER_LLM_API_KEY`
+- `NEWSLETTER_LLM_API_KEY_ENV` (optional, defaults to `OPENAI_API_KEY`)
+
+Example:
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main \
+  --ai-mode required \
+  --llm-backend openai-compatible \
+  --llm-model gpt-4.1-mini \
+  --llm-base-url https://api.openai.com/v1
+```
 
 ## Ejecución diaria a las 09:00
 Hay dos unidades systemd listas en `systemd/`:

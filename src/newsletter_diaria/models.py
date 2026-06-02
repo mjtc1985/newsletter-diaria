@@ -52,6 +52,22 @@ class OpenCodeConfig:
 
 
 @dataclass(frozen=True)
+class OpenAICompatibleConfig:
+    base_url: str | None
+    api_key: str | None
+    api_key_env: str
+    model: str | None
+    json_mode: bool
+
+
+@dataclass(frozen=True)
+class LLMConfig:
+    backend: str
+    opencode: OpenCodeConfig
+    openai_compatible: OpenAICompatibleConfig
+
+
+@dataclass(frozen=True)
 class AppConfig:
     hours: int
     limit: int
@@ -60,7 +76,7 @@ class AppConfig:
     sources: Path
     ai_mode: str
     ai_candidates: int
-    opencode: OpenCodeConfig
+    llm: LLMConfig
     send_email: bool
     email_to: str | None
     email_from: str | None

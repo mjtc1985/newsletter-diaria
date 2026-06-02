@@ -39,7 +39,7 @@ def run(config: AppConfig) -> int:
     logger.info("Ranking candidates: %d", len(items))
 
     try:
-        draft = build_newsletter(items, config.ai_mode, config.opencode, source_index)
+        draft = build_newsletter(items, config.ai_mode, config.llm, source_index)
     except RuntimeError as exc:
         print(f"(x) {exc}", file=sys.stderr)
         return 1
