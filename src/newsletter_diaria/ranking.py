@@ -21,8 +21,11 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
         return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
 
     try:
-        logger.info("Using %s backend for ranking and summaries", llm_config.backend)
-        return llm_rank_and_summarize(items, llm_config)
+        backend_label = llm_config.backend
+        if llm_config.backend == "opencode":
+            backend_label = f"local-cli:{llm_config.opencode.cli_command}"
+        logger.info("Using %s backend for ranking and summaries", backend_label)
+        return llm_rank_and_summarize(items, llm_config, sources_by_name)
     except Exception as exc:
         if ai_mode == "required":
             raise
@@ -46,10 +49,10 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
     ]
 
 
-def llm_rank_and_summarize(items: list[Item], config: LLMConfig) -> NewsletterDraft:
+def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
     provider = build_provider(config)
     ranking = provider.rank(items)
-    ranked_ids = parse_ranking_result(ranking, items)
+    ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
     logger.info("LLM backend returned %d ranked items", len(ranked_ids))
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
     summarized.sort(key=lambda item: (item.rank, -item.importance))
@@ -115,10 +118,11 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
     return result
 
 
-def parse_ranking_result(data: dict, items: list[Item]) -> list[tuple[Item, int, int]]:
+def parse_ranking_result(data: dict, items: list[Item], sources_by_name: dict[str, Source]) -> list[tuple[Item, int, int]]:
     by_uid = {item.uid: item for item in items}
     raw_items = data.get("items", []) if isinstance(data, dict) else []
     ranked: list[tuple[Item, int, int]] = []
+    seen_uids: set[str] = set()
     for raw in raw_items:
         if not isinstance(raw, dict):
             continue
@@ -126,9 +130,38 @@ def parse_ranking_result(data: dict, items: list[Item]) -> list[tuple[Item, int,
         item = by_uid.get(uid)
         if not item:
             continue
-        ranked.append((item, int(raw.get("rank", len(ranked) + 1)), int(raw.get("importance", 50))))
+        if uid in seen_uids:
+            continue
+        seen_uids.add(uid)
+        rank = coerce_int(raw.get("rank"), default=len(ranked) + 1)
+        if rank < 1:
+            rank = len(ranked) + 1
+        importance = coerce_int(raw.get("importance"), default=50)
+        importance = max(1, min(100, importance))
+        ranked.append((item, rank, importance))
     ranked.sort(key=lambda item: (item[1], -item[2]))
-    return ranked
+
+    ordered: list[tuple[Item, int, int]] = []
+    for index, (item, _rank, importance) in enumerate(ranked, start=1):
+        ordered.append((item, index, importance))
+
+    missing = [item for item in items if item.uid not in seen_uids]
+    if missing:
+        missing_ranked = sorted(missing, key=lambda item: rank_item(item, sources_by_name), reverse=True)
+        next_rank = len(ordered) + 1
+        for item in missing_ranked:
+            importance = max(1, min(100, int(rank_item(item, sources_by_name) * 4)))
+            ordered.append((item, next_rank, importance))
+            next_rank += 1
+
+    return ordered
+
+
+def coerce_int(value: object, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def rank_item(item: Item, sources_by_name: dict[str, Source]) -> float:

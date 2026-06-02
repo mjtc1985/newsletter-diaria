@@ -46,6 +46,7 @@ class NewsletterDraft:
 
 @dataclass(frozen=True)
 class OpenCodeConfig:
+    cli_command: str
     model: str | None
     ranker_agent: str
     summarizer_agent: str

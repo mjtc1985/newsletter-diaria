@@ -21,5 +21,6 @@ PYTHONPATH=src python -m newsletter_diaria.main
 - Agentes:
   - `.opencode/agent/newsletter-ranker.md` -> `openai/gpt-5.5`
   - `.opencode/agent/newsletter-summarizer.md` -> `openai/gpt-5.4-mini`
-- El ranking y los resúmenes se lanzan con `opencode run`.
-- Si cambias agentes en `.opencode/agent/`, reinicia OpenCode.
+- El backend local se llama `local-cli` y puede usar `opencode` o `gemini`.
+- Por defecto se usa `gemini`.
+- Si cambias agentes en `.opencode/agent/` y usas `opencode`, reinicia OpenCode.

@@ -16,7 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sources", type=Path, default=Path("sources.json"), help="Path to the sources JSON config")
     parser.add_argument("--ai-mode", choices=("auto", "required", "off"), default="auto", help="Use AI for ranking and summaries")
     parser.add_argument("--ai-candidates", type=int, default=30, help="Maximum number of candidates sent to AI")
-    parser.add_argument("--llm-backend", choices=("opencode", "openai-compatible"), default=os.getenv("NEWSLETTER_LLM_BACKEND", "opencode"), help="LLM backend used for ranking and summaries")
+    parser.add_argument("--llm-backend", choices=("local-cli", "openai-compatible"), default=os.getenv("NEWSLETTER_LLM_BACKEND", "local-cli"), help="LLM backend used for ranking and summaries")
+    parser.add_argument("--llm-cli-command", choices=("gemini", "opencode"), default=os.getenv("NEWSLETTER_LLM_CLI_COMMAND", "gemini"), help="CLI used by the local LLM backend")
     parser.add_argument("--opencode-model", default=os.getenv("NEWSLETTER_OPENCODE_MODEL"), help="provider/model value for opencode")
     parser.add_argument("--opencode-ranker-agent", default="newsletter-ranker", help="opencode agent used for ranking")
     parser.add_argument("--opencode-summarizer-agent", default="newsletter-summarizer", help="opencode agent used for summaries")
@@ -41,6 +42,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def parse_args(argv: list[str] | None = None) -> AppConfig:
     args = build_parser().parse_args(argv)
+    backend = args.llm_backend
+    if backend == "opencode":
+        backend = "local-cli"
     return AppConfig(
         hours=args.hours,
         limit=args.limit,
@@ -50,8 +54,9 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
         ai_mode=args.ai_mode,
         ai_candidates=args.ai_candidates,
         llm=LLMConfig(
-            backend=args.llm_backend,
+            backend=backend,
             opencode=OpenCodeConfig(
+                cli_command=args.llm_cli_command,
                 model=args.opencode_model,
                 ranker_agent=args.opencode_ranker_agent,
                 summarizer_agent=args.opencode_summarizer_agent,

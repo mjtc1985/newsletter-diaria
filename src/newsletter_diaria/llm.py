@@ -48,12 +48,16 @@ class OpenCodeProvider:
         prompt = (
             "Responde en español y SOLO con JSON válido. "
             "Ordena estas noticias por importancia real. "
+            "Los campos rank e importance deben ser enteros; rank empieza en 1 y nunca es 0. "
+            "importance va de 1 a 100. "
+            "Devuelve TODOS los uid exactamente una vez; no omitas ninguno. "
+            "Si dos noticias tienen importancia similar, reparte mejor entre fuentes, pero sin forzar cuotas. "
             "Usa solo los campos dados. "
             "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Ranking prompt length: %d characters", len(prompt))
-        logger.info("Calling OpenCode to rank %d items", len(items))
+        logger.info("Calling %s to rank %d items", self._cli_label(), len(items))
         return self._run_json(agent=self.config.ranker_agent, prompt=prompt)
 
     def summarize_batch(self, ranked_ids: list[tuple[Item, int, int]]) -> dict:
@@ -81,7 +85,7 @@ class OpenCodeProvider:
             "Devuelve exactamente {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
-        logger.info("Calling OpenCode to summarize %d items in batch", len(ranked_ids))
+        logger.info("Calling %s to summarize %d items in batch", self._cli_label(), len(ranked_ids))
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
 
     def summarize_one(self, item: Item) -> dict:
@@ -103,17 +107,31 @@ class OpenCodeProvider:
         )
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
 
+    def _cli_label(self) -> str:
+        return "Gemini CLI" if self.config.cli_command == "gemini" else "OpenCode"
+
     def _run_json(self, agent: str, prompt: str) -> dict:
-        opencode_bin = resolve_opencode_bin()
-        command = [opencode_bin, "run", "--agent", agent, "--format", "default", "--dir", str(self.config.cwd)]
-        if self.config.model:
-            command.extend(["--model", self.config.model])
-        command.append(prompt)
+        cli_bin = resolve_cli_bin(self.config.cli_command)
+        if self.config.cli_command == "opencode":
+            command = [cli_bin, "run", "--agent", agent, "--format", "default", "--dir", str(self.config.cwd)]
+            if self.config.model:
+                command.extend(["--model", self.config.model])
+            command.append(prompt)
+        elif self.config.cli_command == "gemini":
+            command = [cli_bin, "--output-format", "json"]
+            if self.config.model:
+                command.extend(["-m", self.config.model])
+            command.extend(["-p", prompt])
+        else:
+            raise RuntimeError(f"Unsupported local LLM CLI: {self.config.cli_command}")
 
         completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
-            raise RuntimeError((completed.stderr or completed.stdout or "opencode failed").strip())
-        return extract_json_object(completed.stdout)
+            raise RuntimeError((completed.stderr or completed.stdout or f"{self.config.cli_command} failed").strip())
+        data = extract_json_object(completed.stdout)
+        if self.config.cli_command == "gemini" and isinstance(data, dict) and isinstance(data.get("response"), str):
+            return extract_json_object(data["response"])
+        return data
 
 
 class OpenAICompatibleProvider:
@@ -140,6 +158,10 @@ class OpenAICompatibleProvider:
         prompt = (
             "Responde en español y SOLO con JSON válido. "
             "Ordena estas noticias por importancia real. "
+            "Los campos rank e importance deben ser enteros; rank empieza en 1 y nunca es 0. "
+            "importance va de 1 a 100. "
+            "Devuelve TODOS los uid exactamente una vez; no omitas ninguno. "
+            "Si dos noticias tienen importancia similar, reparte mejor entre fuentes, pero sin forzar cuotas. "
             "Usa solo los campos dados. "
             "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
@@ -245,19 +267,19 @@ def build_provider(config: LLMConfig) -> LLMProvider:
     return OpenCodeProvider(config.opencode)
 
 
-def resolve_opencode_bin() -> str:
-    if shutil_which("opencode"):
-        return "opencode"
+def resolve_cli_bin(command_name: str) -> str:
+    if shutil_which(command_name):
+        return command_name
     for candidate in (
-        Path.home() / ".opencode" / "bin" / "opencode",
-        Path.home() / ".local" / "bin" / "opencode",
-        Path.home() / ".bun" / "bin" / "opencode",
-        Path("/usr/local/bin/opencode"),
-        Path("/usr/bin/opencode"),
+        Path.home() / ".opencode" / "bin" / command_name,
+        Path.home() / ".local" / "bin" / command_name,
+        Path.home() / ".bun" / "bin" / command_name,
+        Path(f"/usr/local/bin/{command_name}"),
+        Path(f"/usr/bin/{command_name}"),
     ):
         if candidate.exists() and os.access(candidate, os.X_OK):
             return str(candidate)
-    raise RuntimeError("Could not find the opencode binary")
+    raise RuntimeError(f"Could not find the {command_name} binary")
 
 
 def extract_json_object(text: str) -> dict:

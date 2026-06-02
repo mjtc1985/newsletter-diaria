@@ -50,7 +50,7 @@ src/newsletter_diaria/
 ├── ingest.py        # Ingestion, fetch, and base parsing
 ├── parsers/         # Per-source pluggable parsers
 ├── ranking.py       # Ranking and draft assembly
-├── llm.py           # LLM backends (OpenCode / OpenAI-compatible)
+├── llm.py           # LLM backends (local CLI / OpenAI-compatible)
 ├── renderers.py     # Console, Markdown, and email rendering
 ├── emailing.py      # SMTP delivery
 └── cache.py         # Last-draft persistence
@@ -71,8 +71,9 @@ Important files outside `src/`:
 - Python **3.11+**
 - `pip`
 - network access to the configured sources
-- optionally:
-  - **OpenCode** installed locally, or
+ - optionally:
+  - **OpenCode** installed locally,
+  - **Gemini CLI** installed locally, or
   - an **OpenAI-compatible API**
 
 ---
@@ -157,7 +158,7 @@ PYTHONPATH=src python -m newsletter_diaria.main --limit 5
 ### Force a specific LLM backend
 
 ```bash
-PYTHONPATH=src python -m newsletter_diaria.main --ai-mode required --llm-backend opencode
+PYTHONPATH=src python -m newsletter_diaria.main --ai-mode required --llm-backend local-cli
 ```
 
 ```bash
@@ -226,32 +227,41 @@ The project already includes `GitHub Changelog`, which is especially useful for 
 
 The project supports two LLM backends:
 
-1. **OpenCode**
+1. **Local CLI** (`opencode` or `gemini`)
 2. **OpenAI-compatible API**
 
-### Option A — OpenCode
+### Option A — Local CLI
 
-This is the default backend.
+Default mode uses the **Gemini CLI** locally.
 
-It uses the agents defined in:
+You can switch between:
 
-- `.opencode/agent/newsletter-ranker.md`
-- `.opencode/agent/newsletter-summarizer.md`
+- `NEWSLETTER_LLM_CLI_COMMAND=gemini`
+- `NEWSLETTER_LLM_CLI_COMMAND=opencode`
 
 Useful variables:
 
-- `NEWSLETTER_LLM_BACKEND=opencode`
+- `NEWSLETTER_LLM_BACKEND=local-cli`
+- `NEWSLETTER_LLM_CLI_COMMAND=gemini`
 - `NEWSLETTER_OPENCODE_MODEL`
 
-Example:
+Examples:
 
 ```bash
 PYTHONPATH=src python -m newsletter_diaria.main \
   --ai-mode required \
-  --llm-backend opencode
+  --llm-backend local-cli \
+  --llm-cli-command gemini
 ```
 
-> If you add or change agents in `.opencode/agent/`, restart OpenCode if you already have an active session.
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main \
+  --ai-mode required \
+  --llm-backend local-cli \
+  --llm-cli-command opencode
+```
+
+> If you use `opencode` and change agents in `.opencode/agent/`, restart OpenCode if you already have an active session.
 
 ### Option B — OpenAI-compatible API
 
@@ -336,6 +346,7 @@ With Gmail, you will usually need an **app password** if 2FA is enabled.
 ### LLM
 
 - `NEWSLETTER_LLM_BACKEND`
+- `NEWSLETTER_LLM_CLI_COMMAND`
 - `NEWSLETTER_LLM_MODEL`
 - `NEWSLETTER_LLM_BASE_URL`
 - `NEWSLETTER_LLM_API_KEY`
