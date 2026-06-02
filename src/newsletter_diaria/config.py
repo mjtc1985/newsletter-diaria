@@ -33,4 +33,4 @@ def load_project_env() -> None:
             os.environ[key] = value
             loaded_keys.add(key)
     except Exception as exc:  # pragma: no cover - defensivo
-        logger.warning("No pude leer %s: %s", PROJECT_ENV_FILE, exc)
+        logger.warning("Could not read %s: %s", PROJECT_ENV_FILE, exc)

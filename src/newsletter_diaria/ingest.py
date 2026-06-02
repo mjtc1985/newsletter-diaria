@@ -33,7 +33,7 @@ def collect_items(sources: Iterable[Source]) -> list[Item]:
     total = len(source_list)
     for index, source in enumerate(source_list, start=1):
         try:
-            logger.info("[%d/%d] Leyendo %s", index, total, source.name)
+            logger.info("[%d/%d] Reading %s", index, total, source.name)
             parser = resolve_parser(source)
             items.extend(parser.parse(source))
             logger.info("[%d/%d] %s OK", index, total, source.name)
@@ -87,7 +87,7 @@ def _fetch_bytes(request: Request) -> bytes:
                 continue
             raise last_exc
 
-    raise RuntimeError("No se pudo recuperar la respuesta")
+    raise RuntimeError("Could not fetch a response")
 
 
 def parse_html_source(source: Source) -> list[Item]:

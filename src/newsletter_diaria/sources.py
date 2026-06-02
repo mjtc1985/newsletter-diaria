@@ -43,7 +43,7 @@ DEFAULT_SOURCES: list[Source] = [
 
 def load_sources(path: Path) -> list[Source]:
     if not path.exists():
-        print(f"[warn] No existe {path}, usando fuentes por defecto.", file=sys.stderr)
+        print(f"[warn] {path} does not exist, using default sources.", file=sys.stderr)
         return DEFAULT_SOURCES
 
     data = json.loads(path.read_text(encoding="utf-8"))

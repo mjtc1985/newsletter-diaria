@@ -9,22 +9,22 @@ from newsletter_diaria.models import Item, NewsletterDraft
 def render_console(draft: NewsletterDraft) -> None:
     print(f"\n=== {draft.headline} ===\n")
     if draft.trends:
-        print("Tendencias:")
+        print("Trends:")
         for trend in draft.trends:
             print(f"- {trend}")
         print()
     for ranked in draft.items:
         item = ranked.item
-        when = item.published_at.isoformat() if item.published_at else "sin fecha"
+        when = item.published_at.isoformat() if item.published_at else "no date"
         print(f"{ranked.rank}. {item.title}  [{ranked.importance}/100]")
-        print(f"   Fuente: {item.source}")
-        print(f"   Fecha:  {when}")
+        print(f"   Source: {item.source}")
+        print(f"   Date:   {when}")
         print(f"   Link:   {item.link}")
-        print(f"   Res:    {ranked.summary}")
+        print(f"   Summary:{ranked.summary}")
         if ranked.why:
-            print(f"   Por qué:{ranked.why}")
+            print(f"   Why:    {ranked.why}")
         if ranked.takeaway:
-            print(f"   Clave:  {ranked.takeaway}")
+            print(f"   Takeaway:{ranked.takeaway}")
         print()
 
 
@@ -32,22 +32,22 @@ def write_markdown(draft: NewsletterDraft, output: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     lines = [f"# {draft.headline}", ""]
     if draft.trends:
-        lines.extend(["## Tendencias", ""])
+        lines.extend(["## Trends", ""])
         lines.extend(f"- {trend}" for trend in draft.trends)
         lines.append("")
 
     for ranked in draft.items:
         item = ranked.item
-        when = item.published_at.isoformat() if item.published_at else "sin fecha"
+        when = item.published_at.isoformat() if item.published_at else "no date"
         lines.extend(
             [
                 f"{ranked.rank}. **{item.title}**  _[{ranked.importance}/100]_",
-                f"   - Fuente: {item.source}",
-                f"   - Fecha: {when}",
+                f"   - Source: {item.source}",
+                f"   - Date: {when}",
                 f"   - Link: {item.link}",
-                f"   - Resumen: {ranked.summary or '—'}",
-                f"   - Por qué: {ranked.why or '—'}",
-                f"   - Clave: {ranked.takeaway or '—'}",
+                f"   - Summary: {ranked.summary or '—'}",
+                f"   - Why: {ranked.why or '—'}",
+                f"   - Takeaway: {ranked.takeaway or '—'}",
                 "",
             ]
         )
@@ -55,22 +55,22 @@ def write_markdown(draft: NewsletterDraft, output: Path) -> None:
 
 
 def render_email_text(draft: NewsletterDraft) -> str:
-    lines = [draft.headline or "Resumen del día", ""]
+    lines = [draft.headline or "Daily roundup", ""]
     if draft.trends:
-        lines.append("Tendencias:")
+        lines.append("Trends:")
         lines.extend(f"- {trend}" for trend in draft.trends)
         lines.append("")
 
     for ranked in draft.items:
         item = ranked.item
-        when = item.published_at.isoformat() if item.published_at else "sin fecha"
+        when = item.published_at.isoformat() if item.published_at else "no date"
         lines.extend(
             [
                 f"{ranked.rank}. {item.title} [{ranked.importance}/100]",
-                f"Fuente: {item.source}",
-                f"Fecha: {when}",
+                f"Source: {item.source}",
+                f"Date: {when}",
                 f"Link: {item.link}",
-                f"Resumen: {ranked.summary or '—'}",
+                f"Summary: {ranked.summary or '—'}",
                 "",
             ]
         )
@@ -82,13 +82,13 @@ def render_email_html(draft: NewsletterDraft) -> str:
         return html.escape(value or "")
 
     def fmt_dt(item: Item) -> str:
-        return item.published_at.isoformat() if item.published_at else "sin fecha"
+        return item.published_at.isoformat() if item.published_at else "no date"
 
     trend_html = ""
     if draft.trends:
         trend_html = """
         <div class="trends">
-          <h2>Tendencias</h2>
+          <h2>Trends</h2>
           <ul>
             {trends}
           </ul>
@@ -113,11 +113,11 @@ def render_email_html(draft: NewsletterDraft) -> str:
     )
 
     return f"""<!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{esc(draft.headline or 'Resumen del día')}</title>
+    <title>{esc(draft.headline or 'Daily roundup')}</title>
     <style>
       body {{ margin: 0; padding: 0; background: #f4f7fb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: #0f172a; }}
       .wrap {{ width: 100%; padding: 32px 0; }}
@@ -148,8 +148,8 @@ def render_email_html(draft: NewsletterDraft) -> str:
     <div class="wrap">
       <div class="container">
         <div class="hero">
-          <h1>{esc(draft.headline or 'Resumen del día')}</h1>
-          <p>Selección de lo más relevante de las últimas 24 horas.</p>
+          <h1>{esc(draft.headline or 'Daily roundup')}</h1>
+          <p>A curated selection of the most relevant stories from the last 24 hours.</p>
         </div>
         <div class="content">
           {trend_html}
@@ -159,7 +159,7 @@ def render_email_html(draft: NewsletterDraft) -> str:
             </tbody>
           </table>
         </div>
-        <div class="footer">Generado automáticamente por newsletter-diaria</div>
+        <div class="footer">Generated automatically by newsletter-diaria</div>
       </div>
     </div>
   </body>

@@ -16,7 +16,7 @@ logger = logging.getLogger("newsletter_diaria")
 
 def run(config: AppConfig) -> int:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
-    logger.info("Iniciando newsletter diaria")
+    logger.info("Starting daily newsletter run")
 
     if config.test_email:
         return _run_test_email(config)
@@ -24,19 +24,19 @@ def run(config: AppConfig) -> int:
     if config.send_latest:
         return _run_send_latest(config)
 
-    logger.info("Cargando fuentes desde %s", config.sources)
+    logger.info("Loading sources from %s", config.sources)
     sources = load_sources(config.sources)
     source_index = sources_by_name(sources)
 
-    logger.info("Leyendo feeds de %d fuentes", len(sources))
+    logger.info("Reading feeds from %d sources", len(sources))
     items = collect_items(sources)
-    logger.info("Recibidos %d items", len(items))
+    logger.info("Fetched %d items", len(items))
     items = filter_recent(items, hours=config.hours)
-    logger.info("Filtrados a %d items recientes (últimas %d horas)", len(items), config.hours)
+    logger.info("Filtered down to %d recent items (last %d hours)", len(items), config.hours)
     items = dedupe(items)
-    logger.info("Tras deduplicar quedan %d items", len(items))
+    logger.info("%d items remain after deduplication", len(items))
     items = cap_candidates(items, config.ai_candidates)
-    logger.info("Candidatos para ranking: %d", len(items))
+    logger.info("Ranking candidates: %d", len(items))
 
     try:
         draft = build_newsletter(items, config.ai_mode, config.opencode, source_index)
@@ -48,10 +48,10 @@ def run(config: AppConfig) -> int:
         draft = NewsletterDraft(headline=draft.headline, items=draft.items[: config.limit], trends=draft.trends)
 
     if not draft.items:
-        print("No se encontraron noticias recientes.")
+        print("No recent news items found.")
         return 0
 
-    logger.info("Renderizando salida y escribiendo Markdown en %s", config.output)
+    logger.info("Rendering output and writing Markdown to %s", config.output)
     render_console(draft)
     write_markdown(draft, config.output)
     write_draft_cache(draft, config.cache_file)
@@ -62,7 +62,7 @@ def run(config: AppConfig) -> int:
             print(f"(x) {exc}", file=sys.stderr)
             return 1
 
-    print(f"\nGuardado: {config.output}")
+    print(f"\nSaved: {config.output}")
     return 0
 
 
@@ -72,7 +72,7 @@ def _run_test_email(config: AppConfig) -> int:
     except RuntimeError as exc:
         print(f"(x) {exc}", file=sys.stderr)
         return 1
-    print("Email SMTP OK")
+    print("SMTP email configuration OK")
     return 0
 
 
@@ -80,10 +80,10 @@ def _run_send_latest(config: AppConfig) -> int:
     try:
         draft = load_draft_cache(config.cache_file)
         if not draft.items:
-            raise RuntimeError(f"No hay boletín cacheado en {config.cache_file}")
+            raise RuntimeError(f"No cached newsletter found at {config.cache_file}")
         send_newsletter_email(draft, config)
     except RuntimeError as exc:
         print(f"(x) {exc}", file=sys.stderr)
         return 1
-    print(f"\nEnviado desde caché: {config.cache_file}")
+    print(f"\nSent from cache: {config.cache_file}")
     return 0

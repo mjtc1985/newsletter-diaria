@@ -22,26 +22,26 @@ def build_newsletter(items: list[Item], ai_mode: str, opencode_config: OpenCodeC
         return NewsletterDraft(headline="", items=[], trends=[])
 
     if ai_mode == "off":
-        logger.info("AI desactivada: usando ranking heurístico")
-        return NewsletterDraft(headline="Resumen del día", items=heuristic_rank(items, sources_by_name), trends=[])
+        logger.info("AI disabled: using heuristic ranking")
+        return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
 
     try:
         resolve_opencode_bin()
     except RuntimeError:
-        message = "No encuentro opencode en el sistema; usando ranking heurístico."
+        message = "Could not find opencode on the system; using heuristic ranking."
         if ai_mode == "required":
             raise RuntimeError(message)
         print(f"[warn] {message}", file=sys.stderr)
-        return NewsletterDraft(headline="Resumen del día", items=heuristic_rank(items, sources_by_name), trends=[])
+        return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
 
     try:
-        logger.info("Usando OpenCode para ranking y resúmenes")
+        logger.info("Using OpenCode for ranking and summaries")
         return opencode_rank_and_summarize(items, opencode_config)
     except Exception as exc:
         if ai_mode == "required":
             raise
-        print(f"[warn] opencode falló ({exc}); usando ranking heurístico.", file=sys.stderr)
-        return NewsletterDraft(headline="Resumen del día", items=heuristic_rank(items, sources_by_name), trends=[])
+        print(f"[warn] opencode failed ({exc}); using heuristic ranking.", file=sys.stderr)
+        return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
 
 
 def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> list[RankedItem]:
@@ -52,8 +52,8 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
             rank=index,
             importance=min(100, int(rank_item(item, sources_by_name) * 4)),
             summary=textwrap.shorten(item.summary or item.title, width=240, placeholder="..."),
-            why="Ranking heurístico por fecha y fuente.",
-            takeaway="Revisión manual recomendada.",
+            why="Heuristic ranking based on recency and source.",
+            takeaway="Manual review recommended.",
         )
         for index, item in enumerate(ranked_items, start=1)
     ]
@@ -74,23 +74,23 @@ def opencode_rank_and_summarize(items: list[Item], config: OpenCodeConfig) -> Ne
         ]
     }
     prompt = (
-        "Responde en español y SOLO con JSON válido. "
-        "Ordena estas noticias por importancia real. "
-        "Usa solo los campos dados. "
-        "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
-        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+        "Respond in English and ONLY with valid JSON. "
+        "Rank these news items by real-world importance. "
+        "Use only the provided fields. "
+        "Return exactly {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
+        f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
     )
-    logger.info("Prompt de ranking: %d caracteres", len(prompt))
-    logger.info("Llamando a OpenCode para ranking de %d items", len(items))
+    logger.info("Ranking prompt length: %d characters", len(prompt))
+    logger.info("Calling OpenCode to rank %d items", len(items))
     ranking = run_opencode_json(config=config, agent=config.ranker_agent, prompt=prompt)
     ranked_ids = parse_ranking_result(ranking, items)
-    logger.info("OpenCode devolvió %d items rankeados", len(ranked_ids))
+    logger.info("OpenCode returned %d ranked items", len(ranked_ids))
     summarized = summarize_ranked_items_batch(ranked_ids, config)
     summarized.sort(key=lambda item: (item.rank, -item.importance))
-    logger.info("Resumenes completados")
-    headline = str(ranking.get("headline", "Resumen del día")).strip() if isinstance(ranking, dict) else "Resumen del día"
+    logger.info("Summaries completed")
+    headline = str(ranking.get("headline", "Daily roundup")).strip() if isinstance(ranking, dict) else "Daily roundup"
     trends = [str(trend).strip() for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else []) if str(trend).strip()]
-    return NewsletterDraft(headline=headline or "Resumen del día", items=summarized, trends=trends)
+    return NewsletterDraft(headline=headline or "Daily roundup", items=summarized, trends=trends)
 
 
 def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], config: OpenCodeConfig) -> list[RankedItem]:
@@ -113,26 +113,26 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], config
         ]
     }
     prompt = (
-        "Responde en español y SOLO con JSON válido. "
-        "Resume TODOS los artículos de la lista en una sola respuesta. "
-        "Haz que cada resumen sea un abstract breve y natural, de 2 a 4 frases, sin formato tipo ficha ni listas. "
-        "Usa solo los campos dados. "
-        "Devuelve exactamente {\"items\":[{\"uid\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
-        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+        "Respond in English and ONLY with valid JSON. "
+        "Summarize ALL articles in the list in a single response. "
+        "Make each summary a brief, natural abstract in 2 to 4 sentences, without bullet lists or card-like formatting. "
+        "Use only the provided fields. "
+        "Return exactly {\"items\":[{\"uid\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
+        f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
     )
-    logger.info("Llamando a OpenCode para resumir %d items en batch", len(ranked_ids))
+    logger.info("Calling OpenCode to summarize %d items in batch", len(ranked_ids))
     try:
         data = run_opencode_json(config=config, agent=config.summarizer_agent, prompt=prompt)
         summaries = parse_summary_batch_result(data, ranked_ids)
         if summaries:
             return summaries
     except Exception as exc:
-        logger.warning("Batch de resúmenes falló: %s; usando fallback individual", exc)
+        logger.warning("Summary batch failed: %s; using per-item fallback", exc)
 
     summarized: list[RankedItem] = []
     total = len(ranked_ids)
     for index, (item, rank, importance) in enumerate(ranked_ids, start=1):
-        logger.info("[%d/%d] Resumiendo individualmente: %s", index, total, item.title)
+        logger.info("[%d/%d] Summarizing individually: %s", index, total, item.title)
         summary_data = run_opencode_json(config=config, agent=config.summarizer_agent, prompt=make_summary_prompt(item))
         summarized.append(
             RankedItem(
@@ -157,11 +157,11 @@ def make_summary_prompt(item: Item) -> str:
         "summary": item.summary,
     }
     return (
-        "Responde en español y SOLO con JSON válido. "
-        "Resume el artículo sin inventar nada. "
-        "Escribe un abstract breve y natural, de 2 a 4 frases, sin formato tipo ficha ni listas. "
-        "Devuelve exactamente {\"summary\":string,\"why\":string,\"takeaway\":string}. "
-        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+        "Respond in English and ONLY with valid JSON. "
+        "Summarize the article without inventing anything. "
+        "Write a brief, natural abstract in 2 to 4 sentences, without bullet lists or card-like formatting. "
+        "Return exactly {\"summary\":string,\"why\":string,\"takeaway\":string}. "
+        f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
     )
 
 
@@ -199,7 +199,7 @@ def run_opencode_json(config: OpenCodeConfig, agent: str, prompt: str) -> dict:
 
     completed = subprocess.run(command, capture_output=True, text=True, check=False)
     if completed.returncode != 0:
-        raise RuntimeError((completed.stderr or completed.stdout or "opencode falló").strip())
+        raise RuntimeError((completed.stderr or completed.stdout or "opencode failed").strip())
     return extract_json_object(completed.stdout)
 
 
@@ -215,7 +215,7 @@ def resolve_opencode_bin() -> str:
     ):
         if candidate.exists() and os.access(candidate, os.X_OK):
             return str(candidate)
-    raise RuntimeError("No encuentro el binario de opencode")
+    raise RuntimeError("Could not find the opencode binary")
 
 
 def parse_ranking_result(data: dict, items: list[Item]) -> list[tuple[Item, int, int]]:
@@ -242,7 +242,7 @@ def extract_json_object(text: str) -> dict:
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start == -1 or end == -1 or end < start:
-        raise ValueError("La IA no devolvió JSON válido")
+        raise ValueError("The AI did not return valid JSON")
     return json.loads(cleaned[start : end + 1])
 
 

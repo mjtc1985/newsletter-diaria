@@ -35,7 +35,7 @@ def write_draft_cache(draft: NewsletterDraft, cache_file: Path) -> None:
 def load_draft_cache(cache_file: Path) -> NewsletterDraft:
     data = json.loads(cache_file.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise RuntimeError(f"Caché inválida: {cache_file}")
+        raise RuntimeError(f"Invalid cache file: {cache_file}")
 
     ranked_items: list[RankedItem] = []
     for raw in data.get("items", []):
@@ -62,7 +62,7 @@ def load_draft_cache(cache_file: Path) -> NewsletterDraft:
 
     ranked_items.sort(key=lambda item: (item.rank, -item.importance))
     return NewsletterDraft(
-        headline=str(data.get("headline", "Resumen del día")),
+        headline=str(data.get("headline", "Daily roundup")),
         trends=[str(value) for value in data.get("trends", []) if str(value).strip()],
         items=ranked_items,
     )

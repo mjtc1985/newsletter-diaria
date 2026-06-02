@@ -20,7 +20,7 @@ class GenericHtmlParser(SourceParser):
             try:
                 items.append(parse_html_article(source.name, article_url))
             except Exception as exc:
-                logger.warning("[%s] articulo omitido: %s", source.name, exc)
+                logger.warning("[%s] skipped article: %s", source.name, exc)
         return items
 
 
