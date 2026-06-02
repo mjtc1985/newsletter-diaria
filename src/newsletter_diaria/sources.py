@@ -13,6 +13,7 @@ PRIORITY_WEIGHTS = {"high": 4.0, "medium": 2.0, "low": 1.0}
 DEFAULT_SOURCES: list[Source] = [
     Source("GitHub Blog", "https://github.blog/feed/", topic="software", priority="high", parser="feed"),
     Source("GitHub Engineering", "https://github.blog/category/engineering/feed/", topic="software", priority="high", parser="feed"),
+    Source("GitHub Changelog", "https://github.blog/changelog/feed/", topic="software", priority="high", parser="feed"),
     Source("OpenAI Blog", "https://openai.com/blog/rss.xml", topic="ai", priority="high", parser="feed"),
     Source("Anthropic Blog", "https://www.anthropic.com/news", topic="ai", priority="high", kind="html", max_items=5, parser="anthropic"),
     Source("Google AI Blog", "https://blog.google/technology/ai/rss/", topic="ai", priority="high", parser="feed"),

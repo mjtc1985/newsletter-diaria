@@ -2,6 +2,7 @@
   "sources": [
     {"name": "GitHub Blog", "url": "https://github.blog/feed/", "topic": "software", "priority": "high"},
     {"name": "GitHub Engineering", "url": "https://github.blog/category/engineering/feed/", "topic": "software", "priority": "high"},
+    {"name": "GitHub Changelog", "url": "https://github.blog/changelog/feed/", "topic": "software", "priority": "high"},
     {"name": "OpenAI Blog", "url": "https://openai.com/blog/rss.xml", "topic": "ai", "priority": "high"},
     {"name": "Anthropic Blog", "url": "https://www.anthropic.com/news", "topic": "ai", "priority": "high", "kind": "html", "max_items": 5, "parser": "anthropic"},
     {"name": "Google AI Blog", "url": "https://blog.google/technology/ai/rss/", "topic": "ai", "priority": "high"},
