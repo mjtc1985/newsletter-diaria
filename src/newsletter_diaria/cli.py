@@ -18,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--ai-candidates", type=int, default=30, help="Maximum number of candidates sent to AI")
     parser.add_argument("--llm-backend", choices=("local-cli", "openai-compatible"), default=os.getenv("NEWSLETTER_LLM_BACKEND", "local-cli"), help="LLM backend used for ranking and summaries")
     parser.add_argument("--llm-cli-command", choices=("gemini", "opencode"), default=os.getenv("NEWSLETTER_LLM_CLI_COMMAND", "gemini"), help="CLI used by the local LLM backend")
-    parser.add_argument("--local-cli-model", default=os.getenv("NEWSLETTER_LOCAL_CLI_MODEL") or os.getenv("NEWSLETTER_OPENCODE_MODEL"), help="provider/model value for the local CLI backend")
+    parser.add_argument("--local-cli-model", default=os.getenv("NEWSLETTER_LOCAL_CLI_MODEL"), help="provider/model value for the local CLI backend")
     parser.add_argument("--opencode-ranker-agent", default="newsletter-ranker", help="opencode agent used for ranking")
     parser.add_argument("--opencode-summarizer-agent", default="newsletter-summarizer", help="opencode agent used for summaries")
     parser.add_argument("--opencode-cwd", type=Path, default=Path.cwd(), help="Working directory for opencode")
