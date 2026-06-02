@@ -1,55 +1,202 @@
 # newsletter-diaria
 
-Newsletter diaria de noticias de software, IA y dev blogs.
+A daily technical newsletter generator built from curated RSS/Atom feeds and selected HTML sources.
 
-## MVP
-- Ingesta RSS/APIs
-- Ranking por importancia
-- Resúmenes con IA
-- Envío por email
-- Fuentes configurables en `sources.json`
+The project collects recent stories, deduplicates them, ranks them with AI or heuristics, generates summaries, and produces output ready for console, Markdown, and email delivery.
 
-## Dev
+---
+
+## What it does
+
+- Ingests news from configurable technical sources
+- Filters content within a recent time window
+- Deduplicates and caps candidates before ranking
+- Orders stories by importance
+- Generates editorial summaries
+- Exports to:
+  - console
+  - `output/daily.md`
+  - `output/latest.json`
+  - HTML/plain-text email
+
+---
+
+## Who this is for
+
+This project is a good fit for:
+
+- personal daily reading
+- internal technical newsletters
+- automated curation of software, AI, and infrastructure news
+- experimentation with interchangeable LLM backends
+
+---
+
+## Architecture in one line
+
+`sources -> ingest -> filter/dedupe -> rank -> summarize -> render -> cache/email`
+
+---
+
+## Project structure
+
+```text
+src/newsletter_diaria/
+├── app.py           # Main orchestration
+├── cli.py           # CLI and argument parsing
+├── config.py        # Environment loading
+├── models.py        # Domain dataclasses
+├── sources.py       # Default sources + JSON loading
+├── ingest.py        # Ingestion, fetch, and base parsing
+├── parsers/         # Per-source pluggable parsers
+├── ranking.py       # Ranking and draft assembly
+├── llm.py           # LLM backends (OpenCode / OpenAI-compatible)
+├── renderers.py     # Console, Markdown, and email rendering
+├── emailing.py      # SMTP delivery
+└── cache.py         # Last-draft persistence
+```
+
+Important files outside `src/`:
+
+- `sources.json`: editable source catalog
+- `.smtpgmail.env`: local email configuration
+- `.newsletter.env.example`: example environment variables
+- `.opencode/agent/`: OpenCode agents used by the project
+- `systemd/`: units for scheduled daily execution
+
+---
+
+## Requirements
+
+- Python **3.11+**
+- `pip`
+- network access to the configured sources
+- optionally:
+  - **OpenCode** installed locally, or
+  - an **OpenAI-compatible API**
+
+---
+
+## Quick install
+
+### 1. Create a virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
+pip install -e .
+```
+
+If you do not want editable mode:
+
+```bash
+pip install .
+```
+
+---
+
+## First run
+
+Minimal execution:
+
 ```bash
 PYTHONPATH=src python -m newsletter_diaria.main
 ```
 
-## One-liner
+Or with the installed entrypoint:
+
+```bash
+newsletter-diaria
+```
+
+If you want to validate only the pipeline without AI:
+
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main --ai-mode off
+```
+
+---
+
+## Most useful commands
+
+### Generate the newsletter
+
 ```bash
 make newsletter
 ```
 
-## One-liner con email
+### Generate and send by email
+
 ```bash
 make newsletter-email
 ```
-Por defecto no limita el número de noticias; si quieres caparlo, usa `--limit N`.
 
-## Reenviar lo último sin rehacer feeds
+### Re-send the latest cached newsletter
+
 ```bash
 make email-latest
 ```
-Usa el último boletín cacheado en `output/latest.json`.
 
-## Email test
+### Test SMTP without sending a newsletter
+
 ```bash
 make email-test
 ```
-Prueba la conexión/autenticación SMTP sin mandar la newsletter.
 
-## Config
-Edita `sources.json` para añadir/quitar feeds.
+### Limit the number of stories
 
-Campos soportados por fuente:
-- `name`
-- `url`
-- `topic`
-- `priority`
-- `kind` (`feed` o `html`)
-- `max_items`
-- `parser` (opcional, para fuentes especiales)
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main --limit 5
+```
 
-Ejemplo de fuente con parser específico:
+### Force a specific LLM backend
+
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main --ai-mode required --llm-backend opencode
+```
+
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main \
+  --ai-mode required \
+  --llm-backend openai-compatible \
+  --llm-model gpt-4.1-mini \
+  --llm-base-url https://api.openai.com/v1
+```
+
+---
+
+## Generated output
+
+After a normal run, the project produces:
+
+- `output/daily.md`: Markdown version of the newsletter
+- `output/latest.json`: structured cache of the latest newsletter
+
+`latest.json` is also used by `--send-latest`, so it is part of the operational flow, not just a debug artifact.
+
+---
+
+## Source configuration
+
+`sources.json` defines which sources are queried.
+
+### Supported source fields
+
+- `name`: display name
+- `url`: feed or page URL
+- `topic`: logical category
+- `priority`: `high`, `medium`, `low`
+- `kind`: `feed` or `html`
+- `max_items`: maximum number of articles to extract
+- `parser`: optional specific parser
+
+### Example
+
 ```json
 {
   "name": "Anthropic Blog",
@@ -62,63 +209,65 @@ Ejemplo de fuente con parser específico:
 }
 ```
 
-Si no defines `parser`, el sistema usa uno genérico según `kind`.
+If `parser` is not set, the system falls back to the default parser for that `kind`.
 
-### Email (Gmail SMTP)
-El script carga automáticamente `.smtpgmail.env` desde la raíz del repo.
+### Current special parsers
 
-La ventana temporal por defecto es de **las últimas 24 horas** (`--hours 24`).
+- `anthropic`
+- `uber_engineering`
 
-Usa variables de entorno:
-- `NEWSLETTER_EMAIL_TO` (puede ser una lista separada por comas/`;`/saltos de línea)
-- `NEWSLETTER_EMAIL_FROM`
-- `NEWSLETTER_GMAIL_USER`
-- `NEWSLETTER_GMAIL_PASSWORD`
-- `NEWSLETTER_SMTP_HOST` (opcional, default `smtp.gmail.com`)
-- `NEWSLETTER_SMTP_PORT` (opcional, default `465`)
+### Recommended source already included
 
-Ejemplo:
-```bash
-cp .smtpgmail.env.example .smtpgmail.env
-# edita .smtpgmail.env con tus datos
-PYTHONPATH=src python -m newsletter_diaria.main --send-email
-```
+The project already includes `GitHub Changelog`, which is especially useful for catching product, pricing, and deprecation changes such as GitHub Copilot updates.
 
-Nota: con Gmail suele hacer falta un **app password** si tienes 2FA.
+---
 
-OpenCode no necesita configuración extra para esto: el binario Python lee `.smtpgmail.env` al arrancar.
+## AI backends
 
-## IA
 The project supports two LLM backends:
 
-1. **OpenCode** (default)
+1. **OpenCode**
 2. **OpenAI-compatible API**
 
-### OpenCode backend
-By default the script runs `opencode run ...` using the local binary.
+### Option A — OpenCode
+
+This is the default backend.
+
+It uses the agents defined in:
+
+- `.opencode/agent/newsletter-ranker.md`
+- `.opencode/agent/newsletter-summarizer.md`
 
 Useful variables:
+
 - `NEWSLETTER_LLM_BACKEND=opencode`
 - `NEWSLETTER_OPENCODE_MODEL`
 
 Example:
+
 ```bash
-PYTHONPATH=src python -m newsletter_diaria.main --ai-mode required --llm-backend opencode
+PYTHONPATH=src python -m newsletter_diaria.main \
+  --ai-mode required \
+  --llm-backend opencode
 ```
 
-If you add or change agents in `.opencode/agent/`, restart OpenCode if you're using an already-open session.
+> If you add or change agents in `.opencode/agent/`, restart OpenCode if you already have an active session.
 
-### OpenAI-compatible backend
-You can also use any OpenAI-compatible API endpoint directly with an API key.
+### Option B — OpenAI-compatible API
+
+Useful when you want to use an API key directly instead of OpenCode.
 
 Useful variables:
+
 - `NEWSLETTER_LLM_BACKEND=openai-compatible`
 - `NEWSLETTER_LLM_MODEL`
 - `NEWSLETTER_LLM_BASE_URL`
 - `NEWSLETTER_LLM_API_KEY`
-- `NEWSLETTER_LLM_API_KEY_ENV` (optional, defaults to `OPENAI_API_KEY`)
+- `NEWSLETTER_LLM_API_KEY_ENV` (defaults to `OPENAI_API_KEY`)
+- `NEWSLETTER_LLM_JSON_MODE` (`1` by default)
 
 Example:
+
 ```bash
 PYTHONPATH=src python -m newsletter_diaria.main \
   --ai-mode required \
@@ -127,12 +276,90 @@ PYTHONPATH=src python -m newsletter_diaria.main \
   --llm-base-url https://api.openai.com/v1
 ```
 
-## Ejecución diaria a las 09:00
-Hay dos unidades systemd listas en `systemd/`:
+---
+
+## Email configuration
+
+Delivery is done via Gmail SMTP.
+
+The project automatically loads `.smtpgmail.env` from the repository root.
+
+### Required variables
+
+- `NEWSLETTER_EMAIL_TO`
+- `NEWSLETTER_EMAIL_FROM`
+- `NEWSLETTER_GMAIL_USER`
+- `NEWSLETTER_GMAIL_PASSWORD`
+
+### Optional variables
+
+- `NEWSLETTER_SMTP_HOST` (default: `smtp.gmail.com`)
+- `NEWSLETTER_SMTP_PORT` (default: `465`)
+
+### Example
+
+```bash
+cp .smtpgmail.env.example .smtpgmail.env
+# edit .smtpgmail.env with your values
+PYTHONPATH=src python -m newsletter_diaria.main --send-email
+```
+
+> With Gmail, you will usually need an **app password** if 2FA is enabled.
+
+---
+
+## Useful environment variables
+
+### Email
+
+- `NEWSLETTER_EMAIL_TO`
+- `NEWSLETTER_EMAIL_FROM`
+- `NEWSLETTER_GMAIL_USER`
+- `NEWSLETTER_GMAIL_PASSWORD`
+- `NEWSLETTER_SMTP_HOST`
+- `NEWSLETTER_SMTP_PORT`
+
+### LLM
+
+- `NEWSLETTER_LLM_BACKEND`
+- `NEWSLETTER_LLM_MODEL`
+- `NEWSLETTER_LLM_BASE_URL`
+- `NEWSLETTER_LLM_API_KEY`
+- `NEWSLETTER_LLM_API_KEY_ENV`
+- `NEWSLETTER_LLM_JSON_MODE`
+- `NEWSLETTER_OPENCODE_MODEL`
+
+---
+
+## Recommended operating modes
+
+### Fast local development
+
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main --ai-mode off --limit 5
+```
+
+### Normal AI-backed run
+
+```bash
+make newsletter
+```
+
+### Automated daily execution
+
+Use the `systemd/` units included in the repository.
+
+---
+
+## systemd automation
+
+The repository includes:
+
 - `systemd/newsletter-diaria.service`
 - `systemd/newsletter-diaria.timer`
 
-Instalación típica:
+### Typical installation
+
 ```bash
 sudo cp systemd/newsletter-diaria.service /etc/systemd/system/
 sudo cp systemd/newsletter-diaria.timer /etc/systemd/system/
@@ -141,10 +368,79 @@ sudo systemctl enable --now newsletter-diaria.timer
 sudo systemctl list-timers | grep newsletter-diaria
 ```
 
-Logs:
+### Logs
+
 ```bash
 journalctl -u newsletter-diaria.service -f
 ```
 
-## Docker
-No aplica para OpenCode en este proyecto.
+---
+
+## Quick troubleshooting
+
+### Email is not being delivered
+
+- run `make email-test`
+- check `.smtpgmail.env`
+- confirm your app password and 2FA setup
+
+### The LLM backend fails
+
+- run with `--ai-mode off` to isolate ingestion from AI
+- if you use OpenCode, verify that `opencode` is installed and available in PATH
+- if you use an OpenAI-compatible API, validate `base_url`, `model`, and `api_key`
+
+### An HTML source is not parsing correctly
+
+- review `sources.json`
+- check whether the source needs a specific `parser`
+- if no parser exists yet, add one under `src/newsletter_diaria/parsers/`
+
+### Re-send from cache is not working
+
+- make sure `output/latest.json` exists
+- regenerate a newsletter before using `make email-latest`
+
+---
+
+## Current project state
+
+The project is already modularized and ready to grow in these directions:
+
+- more sources and specialized parsers
+- additional LLM backends
+- better ranking heuristics
+- prioritization rules for pricing / deprecations / changelogs / security
+- better LLM observability
+
+---
+
+## What this project is not trying to be
+
+- a general-purpose crawler
+- a distributed queueing system
+- a full editorial platform
+
+It is meant to be practical, hackable, and production-useful enough to generate a daily technical newsletter without turning into an infrastructure monster.
+
+---
+
+## Sensible next improvements
+
+- automated pipeline tests
+- special prioritization for changelogs / pricing / deprecations / security
+- LLM backend observability
+- more output formats
+- a lightweight editorial review step
+
+---
+
+## License and housekeeping
+
+The repository does not define a license yet.
+
+If this project is going to be shared more broadly, it would be worth adding soon:
+
+- a license
+- a local configuration policy
+- a secrets strategy
