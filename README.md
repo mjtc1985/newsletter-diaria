@@ -40,6 +40,30 @@ Prueba la conexión/autenticación SMTP sin mandar la newsletter.
 ## Config
 Edita `sources.json` para añadir/quitar feeds.
 
+Campos soportados por fuente:
+- `name`
+- `url`
+- `topic`
+- `priority`
+- `kind` (`feed` o `html`)
+- `max_items`
+- `parser` (opcional, para fuentes especiales)
+
+Ejemplo de fuente con parser específico:
+```json
+{
+  "name": "Anthropic Blog",
+  "url": "https://www.anthropic.com/news",
+  "topic": "ai",
+  "priority": "high",
+  "kind": "html",
+  "max_items": 5,
+  "parser": "anthropic"
+}
+```
+
+Si no defines `parser`, el sistema usa uno genérico según `kind`.
+
 ### Email (Gmail SMTP)
 El script carga automáticamente `.smtpgmail.env` desde la raíz del repo.
 

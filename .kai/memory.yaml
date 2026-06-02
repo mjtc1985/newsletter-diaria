@@ -1,0 +1,20 @@
+project:
+  name: "newsletter-diaria"
+  root: "/home/raspberry/newsletter-diaria"
+  languages: ["Python"]
+  frameworks: []
+  package_manager: "pip"
+  test_runner: "unknown"
+
+memory_version: "1.0"
+last_updated: "2026-06-02T00:00:00Z"
+total_pipeline_runs: 1
+
+flags:
+  has_conventions: false
+  has_decisions: false
+  has_postmortems: false
+  has_tech_debt: false
+  has_preferences: false
+
+active_prevention_rules: []
