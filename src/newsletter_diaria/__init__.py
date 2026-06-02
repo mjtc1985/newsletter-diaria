@@ -1,0 +1,1 @@
+"""newsletter-diaria package."""

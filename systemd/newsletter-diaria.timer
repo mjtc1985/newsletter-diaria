@@ -1,0 +1,10 @@
+[Unit]
+Description=Ejecuta la newsletter diaria a las 09:00
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+Unit=newsletter-diaria.service
+
+[Install]
+WantedBy=timers.target

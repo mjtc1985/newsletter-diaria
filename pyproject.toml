@@ -1,0 +1,19 @@
+[project]
+name = "newsletter-diaria"
+version = "0.1.0"
+description = "Newsletter diaria de noticias tecnológicas"
+requires-python = ">=3.11"
+dependencies = ["certifi>=2024.0.0"]
+
+[project.scripts]
+newsletter-diaria = "newsletter_diaria.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

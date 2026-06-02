@@ -1,0 +1,30 @@
+{
+  "sources": [
+    {"name": "GitHub Blog", "url": "https://github.blog/feed/", "topic": "software", "priority": "high"},
+    {"name": "GitHub Engineering", "url": "https://github.blog/category/engineering/feed/", "topic": "software", "priority": "high"},
+    {"name": "OpenAI Blog", "url": "https://openai.com/blog/rss.xml", "topic": "ai", "priority": "high"},
+    {"name": "Anthropic Blog", "url": "https://www.anthropic.com/news", "topic": "ai", "priority": "high", "kind": "html", "max_items": 5},
+    {"name": "Google AI Blog", "url": "https://blog.google/technology/ai/rss/", "topic": "ai", "priority": "high"},
+    {"name": "Hugging Face Blog", "url": "https://huggingface.co/blog/feed.xml", "topic": "ai", "priority": "high"},
+    {"name": "Vercel Blog", "url": "https://vercel.com/blog/feed", "topic": "software", "priority": "medium"},
+    {"name": "The Gradient", "url": "https://thegradient.pub/rss/", "topic": "ai", "priority": "medium"},
+    {"name": "ByteByteGo", "url": "https://blog.bytebytego.com/feed", "topic": "software", "priority": "medium"},
+    {"name": "Cloudflare Blog", "url": "https://blog.cloudflare.com/rss/", "topic": "infra", "priority": "medium"},
+    {"name": "AWS Architecture", "url": "https://aws.amazon.com/blogs/architecture/feed/", "topic": "infra", "priority": "high"},
+    {"name": "Kubernetes Blog", "url": "https://kubernetes.io/feed.xml", "topic": "infra", "priority": "medium"},
+    {"name": "CNCF Blog", "url": "https://www.cncf.io/blog/feed/", "topic": "infra", "priority": "medium"},
+    {"name": "HashiCorp Blog", "url": "https://www.hashicorp.com/blog/feed.xml", "topic": "infra", "priority": "medium"},
+    {"name": "Uber Engineering", "url": "https://www.uber.com/blog/engineering", "topic": "software", "priority": "medium", "kind": "html", "max_items": 8},
+    {"name": "Microsoft DevBlogs", "url": "https://devblogs.microsoft.com/feed/", "topic": "software", "priority": "medium"},
+    {"name": "Y Combinator Blog", "url": "https://www.ycombinator.com/blog/rss/", "topic": "opinion", "priority": "high"},
+    {"name": "Simon Willison", "url": "https://simonwillison.net/atom/entries/", "topic": "opinion", "priority": "high"},
+    {"name": "The Pragmatic Engineer", "url": "https://blog.pragmaticengineer.com/rss/", "topic": "opinion", "priority": "high"},
+    {"name": "Dan Luu", "url": "https://danluu.com/atom.xml", "topic": "opinion", "priority": "high"},
+    {"name": "Martin Fowler", "url": "https://martinfowler.com/feed.atom", "topic": "opinion", "priority": "high"},
+    {"name": "Netflix TechBlog", "url": "https://netflixtechblog.com/feed", "topic": "software", "priority": "high"},
+    {"name": "Slack Engineering", "url": "https://slack.engineering/feed/", "topic": "software", "priority": "high"},
+    {"name": "Facebook Engineering", "url": "https://engineering.fb.com/feed/", "topic": "software", "priority": "high"},
+    {"name": "Vlad Mihalcea", "url": "https://vladmihalcea.com/feed/", "topic": "software", "priority": "medium"},
+    {"name": "Charity.wtf", "url": "https://charity.wtf/feed/", "topic": "opinion", "priority": "medium"}
+  ]
+}

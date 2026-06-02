@@ -1,0 +1,4 @@
+services:
+  newsletter-diaria:
+    build: .
+    command: newsletter-diaria

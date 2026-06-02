@@ -1,0 +1,8 @@
+[Unit]
+Description=Newsletter diaria
+
+[Service]
+Type=oneshot
+User=raspberry
+WorkingDirectory=/home/raspberry/newsletter-diaria
+ExecStart=/usr/bin/make newsletter-email
