@@ -7,5 +7,5 @@ User=raspberry
 WorkingDirectory=/home/raspberry/newsletter-diaria
 Environment=NEWSLETTER_LLM_BACKEND=local-cli
 Environment=NEWSLETTER_LLM_CLI_COMMAND=gemini
-Environment=NEWSLETTER_OPENCODE_MODEL=gemini-3.1-pro-preview
+Environment=NEWSLETTER_LOCAL_CLI_MODEL=gemini-3.1-pro-preview
 ExecStart=/usr/bin/make newsletter-email

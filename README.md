@@ -243,7 +243,7 @@ Useful variables:
 
 - `NEWSLETTER_LLM_BACKEND=local-cli`
 - `NEWSLETTER_LLM_CLI_COMMAND=gemini`
-- `NEWSLETTER_OPENCODE_MODEL`
+- `NEWSLETTER_LOCAL_CLI_MODEL`
 
 Examples:
 
@@ -269,7 +269,7 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 | --- | --- | --- |
 | `NEWSLETTER_LLM_BACKEND` | LLM family | `local-cli` |
 | `NEWSLETTER_LLM_CLI_COMMAND` | Local CLI to use | `gemini` |
-| `NEWSLETTER_OPENCODE_MODEL` | Model name for the local CLI | `gemini-3.1-pro-preview` in systemd |
+| `NEWSLETTER_LOCAL_CLI_MODEL` | Model name for the local CLI | `gemini-3.1-pro-preview` in systemd |
 | `NEWSLETTER_LLM_MODEL` | Model for OpenAI-compatible mode | unset |
 | `NEWSLETTER_LLM_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
 | `NEWSLETTER_LLM_API_KEY` | OpenAI-compatible API key | unset |
@@ -277,7 +277,7 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 Morning run (the one used by systemd):
 
 ```bash
-NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=gemini NEWSLETTER_OPENCODE_MODEL=gemini-3.1-pro-preview make newsletter-email
+NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=gemini NEWSLETTER_LOCAL_CLI_MODEL=gemini-3.1-pro-preview make newsletter-email
 ```
 
 ### Option B — OpenAI-compatible API
@@ -369,7 +369,7 @@ With Gmail, you will usually need an **app password** if 2FA is enabled.
 - `NEWSLETTER_LLM_API_KEY`
 - `NEWSLETTER_LLM_API_KEY_ENV`
 - `NEWSLETTER_LLM_JSON_MODE`
-- `NEWSLETTER_OPENCODE_MODEL`
+- `NEWSLETTER_LOCAL_CLI_MODEL`
 
 ---
 
