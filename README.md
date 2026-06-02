@@ -277,7 +277,7 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 Morning run (the one used by systemd):
 
 ```bash
-NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=gemini NEWSLETTER_LOCAL_CLI_MODEL=gemini-3.1-pro-preview make newsletter-email
+NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=gemini NEWSLETTER_LOCAL_CLI_MODEL=gemini-3.1-pro-preview PYTHONPATH=src python -m newsletter_diaria.main --send-email --ai-mode required
 ```
 
 ### Option B — OpenAI-compatible API
@@ -408,6 +408,12 @@ sudo cp systemd/newsletter-diaria.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now newsletter-diaria.timer
 sudo systemctl list-timers | grep newsletter-diaria
+```
+
+The service runs directly with:
+
+```bash
+PYTHONPATH=src python3 -m newsletter_diaria.main --send-email --ai-mode required
 ```
 
 ### Logs
