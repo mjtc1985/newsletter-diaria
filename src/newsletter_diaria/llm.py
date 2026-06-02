@@ -46,11 +46,11 @@ class OpenCodeProvider:
             ]
         }
         prompt = (
-            "Respond in English and ONLY with valid JSON. "
-            "Rank these news items by real-world importance. "
-            "Use only the provided fields. "
-            "Return exactly {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
-            f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+            "Responde en español y SOLO con JSON válido. "
+            "Ordena estas noticias por importancia real. "
+            "Usa solo los campos dados. "
+            "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
+            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Ranking prompt length: %d characters", len(prompt))
         logger.info("Calling OpenCode to rank %d items", len(items))
@@ -73,12 +73,13 @@ class OpenCodeProvider:
             ]
         }
         prompt = (
-            "Respond in English and ONLY with valid JSON. "
-            "Summarize ALL articles in the list in a single response. "
-            "Make each summary a brief, natural abstract in 2 to 4 sentences, without bullet lists or card-like formatting. "
-            "Use only the provided fields. "
-            "Return exactly {\"items\":[{\"uid\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
-            f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+            "Responde en español y SOLO con JSON válido. "
+            "Resume TODOS los artículos de la lista en una sola respuesta. "
+            "Traduce también el título de cada artículo a un español natural, manteniendo intactos los nombres propios y marcas. "
+            "Haz que cada resumen sea un abstract breve y natural, de 2 a 4 frases, sin listas. "
+            "Usa solo los campos dados. "
+            "Devuelve exactamente {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
+            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Calling OpenCode to summarize %d items in batch", len(ranked_ids))
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
@@ -93,11 +94,12 @@ class OpenCodeProvider:
             "summary": item.summary,
         }
         prompt = (
-            "Respond in English and ONLY with valid JSON. "
-            "Summarize the article without inventing anything. "
-            "Write a brief, natural abstract in 2 to 4 sentences, without bullet lists or card-like formatting. "
-            "Return exactly {\"summary\":string,\"why\":string,\"takeaway\":string}. "
-            f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+            "Responde en español y SOLO con JSON válido. "
+            "Resume el artículo sin inventar nada. "
+            "Traduce también el título a un español natural, manteniendo intactos los nombres propios y marcas. "
+            "Escribe un abstract breve y natural, de 2 a 4 frases, sin listas. "
+            "Devuelve exactamente {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}. "
+            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
 
@@ -136,11 +138,11 @@ class OpenAICompatibleProvider:
             ]
         }
         prompt = (
-            "Respond in English and ONLY with valid JSON. "
-            "Rank these news items by real-world importance. "
-            "Use only the provided fields. "
-            "Return exactly {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
-            f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+            "Responde en español y SOLO con JSON válido. "
+            "Ordena estas noticias por importancia real. "
+            "Usa solo los campos dados. "
+            "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
+            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Calling OpenAI-compatible backend to rank %d items", len(items))
         return self._chat_json(prompt)
@@ -162,12 +164,13 @@ class OpenAICompatibleProvider:
             ]
         }
         prompt = (
-            "Respond in English and ONLY with valid JSON. "
-            "Summarize ALL articles in the list in a single response. "
-            "Make each summary a brief, natural abstract in 2 to 4 sentences, without bullet lists or card-like formatting. "
-            "Use only the provided fields. "
-            "Return exactly {\"items\":[{\"uid\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
-            f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+            "Responde en español y SOLO con JSON válido. "
+            "Resume TODOS los artículos de la lista en una sola respuesta. "
+            "Traduce también el título de cada artículo a un español natural, manteniendo intactos los nombres propios y marcas. "
+            "Haz que cada resumen sea un abstract breve y natural, de 2 a 4 frases, sin listas. "
+            "Usa solo los campos dados. "
+            "Devuelve exactamente {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
+            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Calling OpenAI-compatible backend to summarize %d items in batch", len(ranked_ids))
         return self._chat_json(prompt)
@@ -182,11 +185,12 @@ class OpenAICompatibleProvider:
             "summary": item.summary,
         }
         prompt = (
-            "Respond in English and ONLY with valid JSON. "
-            "Summarize the article without inventing anything. "
-            "Write a brief, natural abstract in 2 to 4 sentences, without bullet lists or card-like formatting. "
-            "Return exactly {\"summary\":string,\"why\":string,\"takeaway\":string}. "
-            f"Data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+            "Responde en español y SOLO con JSON válido. "
+            "Resume el artículo sin inventar nada. "
+            "Traduce también el título a un español natural, manteniendo intactos los nombres propios y marcas. "
+            "Escribe un abstract breve y natural, de 2 a 4 frases, sin listas. "
+            "Devuelve exactamente {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}. "
+            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         return self._chat_json(prompt)
 

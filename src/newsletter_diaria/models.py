@@ -31,6 +31,7 @@ class RankedItem:
     item: Item
     rank: int
     importance: int
+    translated_title: str | None
     summary: str
     why: str
     takeaway: str

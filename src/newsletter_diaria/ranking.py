@@ -37,6 +37,7 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
             item=item,
             rank=index,
             importance=min(100, int(rank_item(item, sources_by_name) * 4)),
+            translated_title=None,
             summary=textwrap.shorten(item.summary or item.title, width=240, placeholder="..."),
             why="Heuristic ranking based on recency and source.",
             takeaway="Manual review recommended.",
@@ -53,9 +54,9 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig) -> NewsletterDr
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
     summarized.sort(key=lambda item: (item.rank, -item.importance))
     logger.info("Summaries completed")
-    headline = str(ranking.get("headline", "Daily roundup")).strip() if isinstance(ranking, dict) else "Daily roundup"
+    headline = str(ranking.get("headline", "Resumen diario")).strip() if isinstance(ranking, dict) else "Resumen diario"
     trends = [str(trend).strip() for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else []) if str(trend).strip()]
-    return NewsletterDraft(headline=headline or "Daily roundup", items=summarized, trends=trends)
+    return NewsletterDraft(headline=headline or "Resumen diario", items=summarized, trends=trends)
 
 
 def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provider) -> list[RankedItem]:
@@ -79,6 +80,7 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
                 item=item,
                 rank=rank,
                 importance=importance,
+                translated_title=str(summary_data.get("title", "")).strip() or None,
                 summary=str(summary_data.get("summary", item.summary)).strip(),
                 why=str(summary_data.get("why", "")).strip(),
                 takeaway=str(summary_data.get("takeaway", "")).strip(),
@@ -104,6 +106,7 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
                 item=item,
                 rank=rank,
                 importance=importance,
+                translated_title=str(raw.get("title", "")).strip() or None,
                 summary=str(raw.get("summary", item.summary)).strip(),
                 why=str(raw.get("why", "")).strip(),
                 takeaway=str(raw.get("takeaway", "")).strip(),
