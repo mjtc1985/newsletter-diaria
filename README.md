@@ -280,31 +280,44 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 
 ## Email configuration
 
-Delivery is done via Gmail SMTP.
+Delivery is done via generic SMTP.
 
-The project automatically loads `.smtpgmail.env` from the repository root.
+The project automatically loads SMTP configuration from:
+
+1. `.smtp.env`
 
 ### Required variables
 
 - `NEWSLETTER_EMAIL_TO`
 - `NEWSLETTER_EMAIL_FROM`
-- `NEWSLETTER_GMAIL_USER`
-- `NEWSLETTER_GMAIL_PASSWORD`
+- `NEWSLETTER_SMTP_USERNAME`
+- `NEWSLETTER_SMTP_PASSWORD`
+- `NEWSLETTER_SMTP_HOST`
+- `NEWSLETTER_SMTP_PORT`
 
 ### Optional variables
 
-- `NEWSLETTER_SMTP_HOST` (default: `smtp.gmail.com`)
-- `NEWSLETTER_SMTP_PORT` (default: `465`)
+- `NEWSLETTER_SMTP_SSL` (`1` for implicit SSL, `0` for STARTTLS)
 
 ### Example
 
 ```bash
-cp .smtpgmail.env.example .smtpgmail.env
-# edit .smtpgmail.env with your values
+cp .smtp.env.example .smtp.env
+# edit .smtp.env with your values
 PYTHONPATH=src python -m newsletter_diaria.main --send-email
 ```
 
-> With Gmail, you will usually need an **app password** if 2FA is enabled.
+### Gmail still works
+
+Gmail remains a valid SMTP provider.
+
+Typical Gmail setup:
+
+- `NEWSLETTER_SMTP_HOST=smtp.gmail.com`
+- `NEWSLETTER_SMTP_PORT=465`
+- `NEWSLETTER_SMTP_SSL=1`
+
+With Gmail, you will usually need an **app password** if 2FA is enabled.
 
 ---
 
@@ -314,10 +327,11 @@ PYTHONPATH=src python -m newsletter_diaria.main --send-email
 
 - `NEWSLETTER_EMAIL_TO`
 - `NEWSLETTER_EMAIL_FROM`
-- `NEWSLETTER_GMAIL_USER`
-- `NEWSLETTER_GMAIL_PASSWORD`
+- `NEWSLETTER_SMTP_USERNAME`
+- `NEWSLETTER_SMTP_PASSWORD`
 - `NEWSLETTER_SMTP_HOST`
 - `NEWSLETTER_SMTP_PORT`
+- `NEWSLETTER_SMTP_SSL`
 
 ### LLM
 

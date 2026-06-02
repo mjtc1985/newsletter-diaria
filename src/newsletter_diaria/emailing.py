@@ -15,10 +15,12 @@ def send_newsletter_email(draft: NewsletterDraft, config: AppConfig) -> None:
     recipients = parse_recipients(config.email_to)
     if not recipients:
         raise RuntimeError("Missing --email-to or NEWSLETTER_EMAIL_TO")
-    if not config.gmail_password:
-        raise RuntimeError("Missing --gmail-password or NEWSLETTER_GMAIL_PASSWORD")
+    smtp_password = config.smtp_password
+    if not smtp_password:
+        raise RuntimeError("Missing --smtp-password or NEWSLETTER_SMTP_PASSWORD")
 
-    sender = config.email_from or config.gmail_user
+    smtp_username = config.smtp_username
+    sender = config.email_from or smtp_username
     if not sender:
         raise RuntimeError("Missing --email-from or NEWSLETTER_EMAIL_FROM")
 
@@ -30,8 +32,9 @@ def send_newsletter_email(draft: NewsletterDraft, config: AppConfig) -> None:
     message.add_alternative(render_email_html(draft), subtype="html")
 
     logger.info("Sending email to %s via %s:%s", ", ".join(recipients), config.smtp_host, config.smtp_port)
-    with smtplib.SMTP_SSL(config.smtp_host, config.smtp_port, timeout=30) as client:
-        client.login(config.gmail_user or sender, config.gmail_password)
+    with build_smtp_client(config) as client:
+        if smtp_username and smtp_password:
+            client.login(smtp_username, smtp_password)
         client.send_message(message, to_addrs=recipients)
     logger.info("Email sent")
 
@@ -39,16 +42,30 @@ def send_newsletter_email(draft: NewsletterDraft, config: AppConfig) -> None:
 def test_email_config(config: AppConfig) -> None:
     if not parse_recipients(config.email_to):
         raise RuntimeError("Missing --email-to or NEWSLETTER_EMAIL_TO")
-    if not config.gmail_password:
-        raise RuntimeError("Missing --gmail-password or NEWSLETTER_GMAIL_PASSWORD")
+    smtp_password = config.smtp_password
+    if not smtp_password:
+        raise RuntimeError("Missing --smtp-password or NEWSLETTER_SMTP_PASSWORD")
 
-    sender = config.email_from or config.gmail_user
+    smtp_username = config.smtp_username
+    sender = config.email_from or smtp_username
     if not sender:
         raise RuntimeError("Missing --email-from or NEWSLETTER_EMAIL_FROM")
 
     logger.info("Testing SMTP against %s:%s", config.smtp_host, config.smtp_port)
-    with smtplib.SMTP_SSL(config.smtp_host, config.smtp_port, timeout=30) as client:
-        client.login(config.gmail_user or sender, config.gmail_password)
+    with build_smtp_client(config) as client:
+        if smtp_username and smtp_password:
+            client.login(smtp_username, smtp_password)
+
+
+def build_smtp_client(config: AppConfig):
+    if config.smtp_ssl:
+        return smtplib.SMTP_SSL(config.smtp_host, config.smtp_port, timeout=30)
+
+    client = smtplib.SMTP(config.smtp_host, config.smtp_port, timeout=30)
+    client.ehlo()
+    client.starttls()
+    client.ehlo()
+    return client
 
 
 def parse_recipients(value: str | None) -> list[str]:

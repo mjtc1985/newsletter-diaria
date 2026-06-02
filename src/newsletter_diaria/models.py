@@ -81,9 +81,10 @@ class AppConfig:
     send_email: bool
     email_to: str | None
     email_from: str | None
-    gmail_user: str | None
-    gmail_password: str | None
+    smtp_username: str | None
+    smtp_password: str | None
     smtp_host: str
     smtp_port: int
+    smtp_ssl: bool
     test_email: bool
     send_latest: bool

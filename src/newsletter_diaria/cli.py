@@ -26,13 +26,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--llm-api-key", default=os.getenv("NEWSLETTER_LLM_API_KEY"), help="API key for the OpenAI-compatible backend")
     parser.add_argument("--llm-api-key-env", default=os.getenv("NEWSLETTER_LLM_API_KEY_ENV", "OPENAI_API_KEY"), help="Environment variable name to read the API key from when --llm-api-key is not set")
     parser.add_argument("--llm-json-mode", action=argparse.BooleanOptionalAction, default=os.getenv("NEWSLETTER_LLM_JSON_MODE", "1") not in {"0", "false", "False"}, help="Request JSON mode from the OpenAI-compatible backend when supported")
-    parser.add_argument("--send-email", action="store_true", help="Send the newsletter via Gmail SMTP")
+    parser.add_argument("--send-email", action="store_true", help="Send the newsletter via SMTP")
     parser.add_argument("--email-to", default=os.getenv("NEWSLETTER_EMAIL_TO"), help="Email recipient")
-    parser.add_argument("--email-from", default=os.getenv("NEWSLETTER_EMAIL_FROM") or os.getenv("NEWSLETTER_GMAIL_USER"), help="Gmail sender")
-    parser.add_argument("--gmail-user", default=os.getenv("NEWSLETTER_GMAIL_USER"), help="Gmail username if different from sender")
-    parser.add_argument("--gmail-password", default=os.getenv("NEWSLETTER_GMAIL_PASSWORD"), help="Gmail password or app password")
+    parser.add_argument("--email-from", default=os.getenv("NEWSLETTER_EMAIL_FROM") or os.getenv("NEWSLETTER_SMTP_USERNAME"), help="Email sender")
+    parser.add_argument("--smtp-username", default=os.getenv("NEWSLETTER_SMTP_USERNAME"), help="SMTP username")
+    parser.add_argument("--smtp-password", default=os.getenv("NEWSLETTER_SMTP_PASSWORD"), help="SMTP password or app password")
     parser.add_argument("--smtp-host", default=os.getenv("NEWSLETTER_SMTP_HOST", "smtp.gmail.com"), help="SMTP server")
     parser.add_argument("--smtp-port", type=int, default=int(os.getenv("NEWSLETTER_SMTP_PORT", "465")), help="SMTP port")
+    parser.add_argument("--smtp-ssl", action=argparse.BooleanOptionalAction, default=os.getenv("NEWSLETTER_SMTP_SSL", "1") not in {"0", "false", "False"}, help="Use implicit SSL for SMTP connections")
     parser.add_argument("--test-email", action="store_true", help="Test SMTP config without sending the newsletter")
     parser.add_argument("--send-latest", action="store_true", help="Send the latest cached newsletter without re-reading feeds")
     return parser
@@ -67,10 +68,11 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
         send_email=args.send_email,
         email_to=args.email_to,
         email_from=args.email_from,
-        gmail_user=args.gmail_user,
-        gmail_password=args.gmail_password,
+        smtp_username=args.smtp_username,
+        smtp_password=args.smtp_password,
         smtp_host=args.smtp_host,
         smtp_port=args.smtp_port,
+        smtp_ssl=args.smtp_ssl,
         test_email=args.test_email,
         send_latest=args.send_latest,
     )
