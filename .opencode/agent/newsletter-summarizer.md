@@ -1,7 +1,7 @@
 ---
 description: newsletter summary, summarize a single article for the daily tech newsletter.
 mode: subagent
-model: openai/gpt-5.4-mini
+model: google/gemini-3-flash
 permission:
   edit: deny
   bash: deny

@@ -4,6 +4,7 @@ import logging
 import re
 import ssl
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Iterable
 from urllib.error import URLError
@@ -21,6 +22,9 @@ except Exception:  # pragma: no cover
 
 
 UA = "newsletter-diaria/0.1"
+FETCH_TIMEOUT_SECONDS = 12
+FETCH_ATTEMPTS = 2
+MAX_FETCH_WORKERS = 8
 
 logger = logging.getLogger("newsletter_diaria")
 
@@ -31,14 +35,26 @@ def collect_items(sources: Iterable[Source]) -> list[Item]:
     source_list = list(sources)
     items: list[Item] = []
     total = len(source_list)
-    for index, source in enumerate(source_list, start=1):
-        try:
-            logger.info("[%d/%d] Reading %s", index, total, source.name)
-            parser = resolve_parser(source)
-            items.extend(parser.parse(source))
-            logger.info("[%d/%d] %s OK", index, total, source.name)
-        except (URLError, ET.ParseError, TimeoutError) as exc:
-            print(f"[warn] {source.name}: {exc}", file=sys.stderr)
+    if not source_list:
+        return items
+
+    def read_source(index: int, source: Source) -> list[Item]:
+        logger.info("[%d/%d] Reading %s", index, total, source.name)
+        parser = resolve_parser(source)
+        return parser.parse(source)
+
+    with ThreadPoolExecutor(max_workers=min(MAX_FETCH_WORKERS, total)) as executor:
+        futures = {executor.submit(read_source, index, source): (index, source) for index, source in enumerate(source_list, start=1)}
+        for future in as_completed(futures):
+            index, source = futures[future]
+            try:
+                source_items = future.result()
+                items.extend(source_items)
+                logger.info("[%d/%d] %s OK", index, total, source.name)
+            except (URLError, ET.ParseError, TimeoutError) as exc:
+                print(f"[warn] {source.name}: {exc}", file=sys.stderr)
+            except Exception as exc:  # pragma: no cover - defensive per-source isolation
+                print(f"[warn] {source.name}: {exc}", file=sys.stderr)
     return items
 
 
@@ -69,9 +85,9 @@ def _fetch_bytes(request: Request) -> bytes:
     insecure_context = ssl._create_unverified_context()
     last_exc: Exception | None = None
 
-    for attempt in range(3):
+    for attempt in range(FETCH_ATTEMPTS):
         try:
-            with urlopen(request, timeout=20, context=context) as response:
+            with urlopen(request, timeout=FETCH_TIMEOUT_SECONDS, context=context) as response:
                 return response.read()
         except Exception as exc:  # pragma: no cover - depende de red
             last_exc = exc
@@ -83,7 +99,7 @@ def _fetch_bytes(request: Request) -> bytes:
             ) and attempt < 2:
                 context = insecure_context
                 continue
-            if attempt < 2:
+            if attempt < FETCH_ATTEMPTS - 1:
                 continue
             raise last_exc
 

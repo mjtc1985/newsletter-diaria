@@ -7,11 +7,20 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_ENV_FILES = [PROJECT_ROOT / ".smtp.env"]
+PROJECT_TMPDIR = PROJECT_ROOT / ".tmp"
+PROJECT_GEMINI_CACHE_DIR = PROJECT_ROOT / ".gemini-cache"
 
 logger = logging.getLogger("newsletter_diaria")
 
 
 def load_project_env() -> None:
+    PROJECT_TMPDIR.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("TMPDIR", str(PROJECT_TMPDIR))
+    os.environ.setdefault("TMP", str(PROJECT_TMPDIR))
+    os.environ.setdefault("TEMP", str(PROJECT_TMPDIR))
+    PROJECT_GEMINI_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("GEMINI_CACHE_DIR", str(PROJECT_GEMINI_CACHE_DIR))
+
     loaded_keys: set[str] = set()
     for env_file in PROJECT_ENV_FILES:
         if not env_file.exists():

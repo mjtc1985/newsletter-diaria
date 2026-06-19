@@ -22,14 +22,15 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
 
     try:
         backend_label = llm_config.backend
-        if llm_config.backend == "opencode":
+        if llm_config.backend == "local-cli":
             backend_label = f"local-cli:{llm_config.opencode.cli_command}"
         logger.info("Using %s backend for ranking and summaries", backend_label)
         return llm_rank_and_summarize(items, llm_config, sources_by_name)
     except Exception as exc:
         if ai_mode == "required":
-            raise
-        print(f"[warn] LLM backend failed ({exc}); using heuristic ranking.", file=sys.stderr)
+            print(f"[warn] LLM backend failed ({exc}); using heuristic ranking so the newsletter still ships.", file=sys.stderr)
+        else:
+            print(f"[warn] LLM backend failed ({exc}); using heuristic ranking.", file=sys.stderr)
         return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
 
 

@@ -1,7 +1,7 @@
 ---
 description: newsletter ranking, rank news items for the daily tech newsletter.
 mode: subagent
-model: openai/gpt-5.5
+model: google/gemini-3-pro-preview
 permission:
   edit: deny
   bash: deny

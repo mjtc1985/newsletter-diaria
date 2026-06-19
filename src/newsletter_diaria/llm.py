@@ -111,25 +111,37 @@ class OpenCodeProvider:
         return "Gemini CLI" if self.config.cli_command == "gemini" else "OpenCode"
 
     def _run_json(self, agent: str, prompt: str) -> dict:
-        cli_bin = resolve_cli_bin(self.config.cli_command)
         if self.config.cli_command == "opencode":
-            command = [cli_bin, "run", "--agent", agent, "--format", "default", "--dir", str(self.config.cwd)]
-            if self.config.model:
-                command.extend(["--model", self.config.model])
-            command.append(prompt)
-        elif self.config.cli_command == "gemini":
-            command = [cli_bin, "--output-format", "json"]
-            if self.config.model:
-                command.extend(["-m", self.config.model])
-            command.extend(["-p", prompt])
-        else:
-            raise RuntimeError(f"Unsupported local LLM CLI: {self.config.cli_command}")
+            return self._run_opencode_json(agent, prompt)
+
+        if self.config.cli_command == "gemini":
+            return self._run_gemini_json(prompt)
+
+        raise RuntimeError(f"Unsupported local LLM CLI: {self.config.cli_command}")
+
+    def _run_opencode_json(self, agent: str, prompt: str) -> dict:
+        cli_bin = resolve_cli_bin("opencode")
+        command = [cli_bin, "run", "--agent", agent, "--format", "default", "--dir", str(self.config.cwd)]
+        if self.config.model:
+            command.extend(["--model", self.config.model])
+        command.append(prompt)
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+        if completed.returncode != 0:
+            raise RuntimeError((completed.stderr or completed.stdout or "opencode failed").strip())
+        return extract_json_object(completed.stdout)
+
+    def _run_gemini_json(self, prompt: str) -> dict:
+        cli_bin = resolve_cli_bin("gemini")
+        command = [cli_bin, "--output-format", "json"]
+        if self.config.model:
+            command.extend(["-m", self.config.model])
+        command.extend(["-p", prompt])
 
         completed = subprocess.run(command, capture_output=True, text=True, check=False)
         if completed.returncode != 0:
-            raise RuntimeError((completed.stderr or completed.stdout or f"{self.config.cli_command} failed").strip())
+            raise RuntimeError((completed.stderr or completed.stdout or "gemini failed").strip())
         data = extract_json_object(completed.stdout)
-        if self.config.cli_command == "gemini" and isinstance(data, dict) and isinstance(data.get("response"), str):
+        if isinstance(data, dict) and isinstance(data.get("response"), str):
             return extract_json_object(data["response"])
         return data
 
