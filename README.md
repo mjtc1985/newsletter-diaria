@@ -71,10 +71,11 @@ Important files outside `src/`:
 - Python **3.11+**
 - `pip`
 - network access to the configured sources
- - optionally:
-  - **OpenCode** installed locally,
-  - **Gemini CLI** installed locally, or
-  - an **OpenAI-compatible API**
+  - optionally:
+   - **Antigravity CLI** installed locally,
+   - **OpenCode** installed locally,
+   - **Gemini CLI** installed locally, or
+   - an **OpenAI-compatible API**
 
 ---
 
@@ -232,17 +233,16 @@ The project supports two LLM backends:
 
 ### Option A — Local CLI
 
-Default mode uses the **Gemini CLI** locally.
+Default mode uses the **OpenCode CLI** locally with Google auth.
 
 You can switch between:
 
-- `NEWSLETTER_LLM_CLI_COMMAND=gemini`
 - `NEWSLETTER_LLM_CLI_COMMAND=opencode`
+- `NEWSLETTER_LLM_CLI_COMMAND=gemini`
 
 Useful variables:
 
 - `NEWSLETTER_LLM_BACKEND=local-cli`
-- `NEWSLETTER_LLM_CLI_COMMAND=gemini`
 - `NEWSLETTER_LOCAL_CLI_MODEL`
 
 Examples:
@@ -251,7 +251,7 @@ Examples:
 PYTHONPATH=src python -m newsletter_diaria.main \
   --ai-mode required \
   --llm-backend local-cli \
-  --llm-cli-command gemini
+  --llm-cli-command opencode
 ```
 
 ```bash
@@ -268,8 +268,8 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 | Variable | Meaning | Default |
 | --- | --- | --- |
 | `NEWSLETTER_LLM_BACKEND` | LLM family | `local-cli` |
-| `NEWSLETTER_LLM_CLI_COMMAND` | Local CLI to use | `gemini` |
-| `NEWSLETTER_LOCAL_CLI_MODEL` | Model name for the local CLI | `gemini-3.1-pro-preview` in systemd |
+| `NEWSLETTER_LLM_CLI_COMMAND` | Local CLI to use | `opencode` |
+| `NEWSLETTER_LOCAL_CLI_MODEL` | Model name for the local CLI | unset for OpenCode; `gemini-3.1-pro-preview` for Gemini CLI |
 | `NEWSLETTER_LLM_MODEL` | Model for OpenAI-compatible mode | unset |
 | `NEWSLETTER_LLM_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
 | `NEWSLETTER_LLM_API_KEY` | OpenAI-compatible API key | unset |
@@ -277,8 +277,10 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 Morning run (the one used by systemd):
 
 ```bash
-NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=gemini NEWSLETTER_LOCAL_CLI_MODEL=gemini-3.1-pro-preview PYTHONPATH=src python -m newsletter_diaria.main --send-email --ai-mode required
+NEWSLETTER_LLM_BACKEND=local-cli NEWSLETTER_LLM_CLI_COMMAND=opencode PYTHONPATH=src python -m newsletter_diaria.main --send-email --ai-mode required
 ```
+
+That run uses OpenCode with the Antigravity auth plugin.
 
 ### Option B — OpenAI-compatible API
 
@@ -410,6 +412,22 @@ sudo systemctl enable --now newsletter-diaria.timer
 sudo systemctl list-timers | grep newsletter-diaria
 ```
 
+If you change either unit later, run:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart newsletter-diaria.timer
+```
+
+If the local Antigravity binary cannot start on this CPU, the app falls back to OpenCode automatically.
+If it fails with `ENOSPC` during startup, the service now uses `/var/lib/newsletter-diaria` via `StateDirectory=` for writable temp space.
+
+If you previously created a drop-in override for the service, remove it so it does not shadow the repo unit:
+
+```bash
+sudo rm -rf /etc/systemd/system/newsletter-diaria.service.d
+```
+
 The service runs directly with:
 
 ```bash
@@ -435,7 +453,8 @@ journalctl -u newsletter-diaria.service -f
 ### The LLM backend fails
 
 - run with `--ai-mode off` to isolate ingestion from AI
-- if you use OpenCode, verify that `opencode` is installed and available in PATH
+- Antigravity CLI on Raspberry Pi / legacy CPUs may crash with `go/sigill-fail-fast`; the app now falls back to OpenCode automatically
+- if you use OpenCode, run `opencode auth login` and verify the Antigravity plugin is enabled
 - if you use an OpenAI-compatible API, validate `base_url`, `model`, and `api_key`
 
 ### An HTML source is not parsing correctly

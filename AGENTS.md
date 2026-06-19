@@ -19,8 +19,8 @@ PYTHONPATH=src python -m newsletter_diaria.main
 
 ## IA / OpenCode
 - Agentes:
-  - `.opencode/agent/newsletter-ranker.md` -> `openai/gpt-5.5`
-  - `.opencode/agent/newsletter-summarizer.md` -> `openai/gpt-5.4-mini`
+- `.opencode/agent/newsletter-ranker.md` -> `google/gemini-3-pro-preview`
+  - `.opencode/agent/newsletter-summarizer.md` -> `google/gemini-3-flash`
 - El backend local se llama `local-cli` y puede usar `opencode` o `gemini`.
-- Por defecto se usa `gemini`.
+- Por defecto se usa `opencode`.
 - Si cambias agentes en `.opencode/agent/` y usas `opencode`, reinicia OpenCode.
