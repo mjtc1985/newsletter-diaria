@@ -26,16 +26,17 @@ def send_newsletter_email(draft: NewsletterDraft, config: AppConfig) -> None:
 
     message = EmailMessage()
     message["From"] = sender
-    message["To"] = ", ".join(recipients)
+    message["To"] = "Undisclosed recipients:;"
+    message["Bcc"] = ", ".join(recipients)
     message["Subject"] = draft.headline or "Daily roundup"
     message.set_content(render_email_text(draft))
     message.add_alternative(render_email_html(draft), subtype="html")
 
-    logger.info("Sending email to %s via %s:%s", ", ".join(recipients), config.smtp_host, config.smtp_port)
+    logger.info("Sending email to %d recipient(s) via %s:%s", len(recipients), config.smtp_host, config.smtp_port)
     with build_smtp_client(config) as client:
         if smtp_username and smtp_password:
             client.login(smtp_username, smtp_password)
-        client.send_message(message, to_addrs=recipients)
+        client.send_message(message)
     logger.info("Email sent")
 
 
