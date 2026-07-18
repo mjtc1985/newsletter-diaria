@@ -20,6 +20,8 @@ logger = logging.getLogger("newsletter_diaria")
 HTTP_RETRY_STATUS = {429, 500, 502, 503, 504}
 HTTP_MAX_ATTEMPTS = 3
 HTTP_RETRY_CAP_SECONDS = 35.0
+# Modelo de reserva (free tier más amplio) al que caer si el bueno agota cuota.
+FALLBACK_MODELS = ["gemini-flash-lite-latest"]
 
 
 class LLMProvider(Protocol):
@@ -242,8 +244,38 @@ class OpenAICompatibleProvider:
                 f"Missing API key for OpenAI-compatible backend. Set --llm-api-key or {self.config.api_key_env}"
             )
 
+        # Intentamos primero el modelo bueno; si agota cuota (429), caemos rápido al
+        # de reserva (free tier más amplio). El backoff con esperas solo se usa en el
+        # último modelo de la lista, para no ralentizar cuando hay alternativa lista.
+        models: list[str] = []
+        for candidate in [self.model, *FALLBACK_MODELS]:
+            if candidate and candidate not in models:
+                models.append(candidate)
+
+        last_exc: Exception | None = None
+        for index, model in enumerate(models):
+            is_last = index == len(models) - 1
+            try:
+                data = self._post_chat(prompt, model, allow_backoff=is_last)
+            except RuntimeError as exc:
+                last_exc = exc
+                if not is_last:
+                    logger.warning("Modelo '%s' no disponible (%s); probando reserva '%s'",
+                                   model, str(exc)[:80], models[index + 1])
+                    continue
+                raise
+            if index > 0:
+                logger.warning("Generado con modelo de reserva: %s", model)
+            try:
+                content = data["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise RuntimeError("OpenAI-compatible backend returned an unexpected response shape") from exc
+            return extract_json_object(normalize_content(content))
+        raise last_exc or RuntimeError("OpenAI-compatible backend failed")
+
+    def _post_chat(self, prompt: str, model: str, allow_backoff: bool) -> dict:
         payload = {
-            "model": self.model,
+            "model": model,
             "messages": [
                 {"role": "system", "content": "You are a precise JSON-only assistant. Return only valid JSON."},
                 {"role": "user", "content": prompt},
@@ -254,18 +286,9 @@ class OpenAICompatibleProvider:
             payload["response_format"] = {"type": "json_object"}
         body = json.dumps(payload).encode("utf-8")
 
-        data = self._post_with_retries(body)
-
-        try:
-            content = data["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError) as exc:
-            raise RuntimeError("OpenAI-compatible backend returned an unexpected response shape") from exc
-        content = normalize_content(content)
-        return extract_json_object(content)
-
-    def _post_with_retries(self, body: bytes) -> dict:
+        attempts = HTTP_MAX_ATTEMPTS if allow_backoff else 1
         last_exc: Exception | None = None
-        for attempt in range(1, HTTP_MAX_ATTEMPTS + 1):
+        for attempt in range(1, attempts + 1):
             http_request = request.Request(
                 f"{self.base_url}/chat/completions",
                 data=body,
@@ -281,16 +304,16 @@ class OpenAICompatibleProvider:
             except error.HTTPError as exc:
                 details = exc.read().decode("utf-8", errors="ignore")
                 last_exc = RuntimeError(f"OpenAI-compatible backend failed with HTTP {exc.code}: {details}")
-                if exc.code in HTTP_RETRY_STATUS and attempt < HTTP_MAX_ATTEMPTS:
+                if exc.code in HTTP_RETRY_STATUS and attempt < attempts:
                     delay = min(parse_retry_delay(details, default=5.0 * attempt), HTTP_RETRY_CAP_SECONDS)
                     logger.warning("Backend HTTP %s (attempt %d/%d); retrying in %.0fs",
-                                   exc.code, attempt, HTTP_MAX_ATTEMPTS, delay)
+                                   exc.code, attempt, attempts, delay)
                     time.sleep(delay)
                     continue
                 raise last_exc from exc
             except error.URLError as exc:
                 last_exc = RuntimeError(f"Could not reach OpenAI-compatible backend: {exc}")
-                if attempt < HTTP_MAX_ATTEMPTS:
+                if attempt < attempts:
                     time.sleep(5.0 * attempt)
                     continue
                 raise last_exc from exc
