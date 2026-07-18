@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import textwrap
+import time
 from pathlib import Path
 from shutil import which as shutil_which
 from typing import Protocol
@@ -14,6 +15,11 @@ from urllib import error, request
 from newsletter_diaria.models import Item, LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
 
 logger = logging.getLogger("newsletter_diaria")
+
+# Reintentos ante errores transitorios (429 rate-limit, 5xx) del backend HTTP.
+HTTP_RETRY_STATUS = {429, 500, 502, 503, 504}
+HTTP_MAX_ATTEMPTS = 3
+HTTP_RETRY_CAP_SECONDS = 35.0
 
 
 class LLMProvider(Protocol):
@@ -247,23 +253,8 @@ class OpenAICompatibleProvider:
         if self.config.json_mode:
             payload["response_format"] = {"type": "json_object"}
         body = json.dumps(payload).encode("utf-8")
-        http_request = request.Request(
-            f"{self.base_url}/chat/completions",
-            data=body,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with request.urlopen(http_request, timeout=90) as response:
-                data = json.loads(response.read().decode("utf-8"))
-        except error.HTTPError as exc:
-            details = exc.read().decode("utf-8", errors="ignore")
-            raise RuntimeError(f"OpenAI-compatible backend failed with HTTP {exc.code}: {details}") from exc
-        except error.URLError as exc:
-            raise RuntimeError(f"Could not reach OpenAI-compatible backend: {exc}") from exc
+
+        data = self._post_with_retries(body)
 
         try:
             content = data["choices"][0]["message"]["content"]
@@ -271,6 +262,39 @@ class OpenAICompatibleProvider:
             raise RuntimeError("OpenAI-compatible backend returned an unexpected response shape") from exc
         content = normalize_content(content)
         return extract_json_object(content)
+
+    def _post_with_retries(self, body: bytes) -> dict:
+        last_exc: Exception | None = None
+        for attempt in range(1, HTTP_MAX_ATTEMPTS + 1):
+            http_request = request.Request(
+                f"{self.base_url}/chat/completions",
+                data=body,
+                headers={
+                    "Authorization": f"Bearer {self.api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
+            try:
+                with request.urlopen(http_request, timeout=90) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except error.HTTPError as exc:
+                details = exc.read().decode("utf-8", errors="ignore")
+                last_exc = RuntimeError(f"OpenAI-compatible backend failed with HTTP {exc.code}: {details}")
+                if exc.code in HTTP_RETRY_STATUS and attempt < HTTP_MAX_ATTEMPTS:
+                    delay = min(parse_retry_delay(details, default=5.0 * attempt), HTTP_RETRY_CAP_SECONDS)
+                    logger.warning("Backend HTTP %s (attempt %d/%d); retrying in %.0fs",
+                                   exc.code, attempt, HTTP_MAX_ATTEMPTS, delay)
+                    time.sleep(delay)
+                    continue
+                raise last_exc from exc
+            except error.URLError as exc:
+                last_exc = RuntimeError(f"Could not reach OpenAI-compatible backend: {exc}")
+                if attempt < HTTP_MAX_ATTEMPTS:
+                    time.sleep(5.0 * attempt)
+                    continue
+                raise last_exc from exc
+        raise last_exc or RuntimeError("OpenAI-compatible backend failed after retries")
 
 
 def build_provider(config: LLMConfig) -> LLMProvider:
@@ -292,6 +316,19 @@ def resolve_cli_bin(command_name: str) -> str:
         if candidate.exists() and os.access(candidate, os.X_OK):
             return str(candidate)
     raise RuntimeError(f"Could not find the {command_name} binary")
+
+
+def parse_retry_delay(text: str, default: float) -> float:
+    """Extrae el retardo sugerido por el servidor (p. ej. 'retry in 48.1s' o
+    '"retryDelay": "48s"') para respetar el rate-limit; si no lo encuentra, usa default."""
+    for pattern in (r'retry in ([0-9]+(?:\.[0-9]+)?)s', r'retryDelay"\s*:\s*"([0-9]+(?:\.[0-9]+)?)s'):
+        match = re.search(pattern, text, re.I)
+        if match:
+            try:
+                return float(match.group(1))
+            except ValueError:
+                pass
+    return default
 
 
 def extract_json_object(text: str) -> dict:

@@ -82,14 +82,21 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
     total = len(ranked_ids)
     for index, (item, rank, importance) in enumerate(ranked_ids, start=1):
         logger.info("[%d/%d] Summarizing individually: %s", index, total, item.title)
-        summary_data = provider.summarize_one(item)
+        # Resiliencia: si un resumen individual falla (p. ej. 429 puntual), NO tiramos
+        # toda la newsletter a heurístico; conservamos el ranking/titular de IA y para
+        # ese artículo usamos el texto del propio feed.
+        try:
+            summary_data = provider.summarize_one(item)
+        except Exception as exc:
+            logger.warning("Per-item summary failed for '%s': %s; using feed text", item.title, exc)
+            summary_data = {}
         summarized.append(
             RankedItem(
                 item=item,
                 rank=rank,
                 importance=importance,
                 translated_title=str(summary_data.get("title", "")).strip() or None,
-                summary=str(summary_data.get("summary", item.summary)).strip(),
+                summary=str(summary_data.get("summary", "")).strip() or item.summary,
                 why=str(summary_data.get("why", "")).strip(),
                 takeaway=str(summary_data.get("takeaway", "")).strip(),
             )

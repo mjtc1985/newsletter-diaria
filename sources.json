@@ -148,16 +148,46 @@
       "priority": "high"
     },
     {
-      "name": "Vlad Mihalcea",
-      "url": "https://vladmihalcea.com/feed/",
-      "topic": "software",
-      "priority": "medium"
-    },
-    {
       "name": "Charity.wtf",
       "url": "https://charity.wtf/feed/",
       "topic": "opinion",
       "priority": "medium"
+    },
+    {
+      "name": "Google DeepMind",
+      "url": "https://deepmind.google/blog/rss.xml",
+      "topic": "ai",
+      "priority": "high"
+    },
+    {
+      "name": "Google Security Blog",
+      "url": "https://security.googleblog.com/feeds/posts/default",
+      "topic": "security",
+      "priority": "high"
+    },
+    {
+      "name": "Sebastian Raschka",
+      "url": "https://magazine.sebastianraschka.com/feed",
+      "topic": "ai",
+      "priority": "medium"
+    },
+    {
+      "name": "Rust Blog",
+      "url": "https://blog.rust-lang.org/feed.xml",
+      "topic": "software",
+      "priority": "medium"
+    },
+    {
+      "name": "Go Blog",
+      "url": "https://go.dev/blog/feed.atom",
+      "topic": "software",
+      "priority": "medium"
+    },
+    {
+      "name": "Julia Evans",
+      "url": "https://jvns.ca/atom.xml",
+      "topic": "software",
+      "priority": "high"
     }
   ]
 }

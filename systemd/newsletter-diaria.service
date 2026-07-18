@@ -9,4 +9,5 @@ StateDirectory=newsletter-diaria
 Environment=TMPDIR=/var/lib/newsletter-diaria
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NEWSLETTER_LLM_BACKEND=openai-compatible
+TimeoutStartSec=600
 ExecStart=/usr/bin/env PYTHONPATH=src python3 -m newsletter_diaria.main --send-email --ai-mode required
