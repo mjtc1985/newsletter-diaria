@@ -13,6 +13,11 @@ from newsletter_diaria.sources import load_sources, sources_by_name
 
 logger = logging.getLogger("newsletter_diaria")
 
+# Si tras el corte de --hours quedan menos noticias que esto, ampliamos la ventana
+# (fines de semana / festivos publican poco y el correo saldría casi vacío).
+MIN_RECENT_ITEMS = 6
+WIDEN_STEPS_HOURS = (48, 72)
+
 
 def run(config: AppConfig) -> int:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
@@ -29,10 +34,17 @@ def run(config: AppConfig) -> int:
     source_index = sources_by_name(sources)
 
     logger.info("Reading feeds from %d sources", len(sources))
-    items = collect_items(sources)
-    logger.info("Fetched %d items", len(items))
-    items = filter_recent(items, hours=config.hours)
+    all_items = collect_items(sources)
+    logger.info("Fetched %d items", len(all_items))
+
+    items = filter_recent(all_items, hours=config.hours)
     logger.info("Filtered down to %d recent items (last %d hours)", len(items), config.hours)
+    for widen_hours in WIDEN_STEPS_HOURS:
+        if len(items) >= MIN_RECENT_ITEMS or config.hours >= widen_hours:
+            break
+        items = filter_recent(all_items, hours=widen_hours)
+        logger.info("Too few items; widened window to %dh -> %d items", widen_hours, len(items))
+
     items = dedupe(items)
     logger.info("%d items remain after deduplication", len(items))
     items = cap_candidates(items, config.ai_candidates)

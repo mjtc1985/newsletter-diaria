@@ -7,7 +7,6 @@ User=raspberry
 WorkingDirectory=/home/raspberry/newsletter-diaria
 StateDirectory=newsletter-diaria
 Environment=TMPDIR=/var/lib/newsletter-diaria
-Environment=PATH=/home/raspberry/newsletter-diaria/scripts:/home/raspberry/.bun/bin:/home/raspberry/bin:/usr/local/bin:/usr/bin:/bin
-Environment=NEWSLETTER_LLM_BACKEND=local-cli
-Environment=NEWSLETTER_LLM_CLI_COMMAND=opencode
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=NEWSLETTER_LLM_BACKEND=openai-compatible
 ExecStart=/usr/bin/env PYTHONPATH=src python3 -m newsletter_diaria.main --send-email --ai-mode required

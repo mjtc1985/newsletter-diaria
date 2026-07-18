@@ -11,6 +11,10 @@ from newsletter_diaria.sources import PRIORITY_WEIGHTS
 
 logger = logging.getLogger("newsletter_diaria")
 
+# Titular visible cuando la IA no está disponible y se cae al ranking heurístico.
+# Así el propio correo delata el modo degradado en vez de disimularlo.
+DEGRADED_HEADLINE = "Resumen diario (modo básico, sin IA)"
+
 
 def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
     if not items:
@@ -18,7 +22,7 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
 
     if ai_mode == "off":
         logger.info("AI disabled: using heuristic ranking")
-        return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
+        return NewsletterDraft(headline=DEGRADED_HEADLINE, items=heuristic_rank(items, sources_by_name), trends=[])
 
     try:
         backend_label = llm_config.backend
@@ -31,7 +35,7 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
             print(f"[warn] LLM backend failed ({exc}); using heuristic ranking so the newsletter still ships.", file=sys.stderr)
         else:
             print(f"[warn] LLM backend failed ({exc}); using heuristic ranking.", file=sys.stderr)
-        return NewsletterDraft(headline="Daily roundup", items=heuristic_rank(items, sources_by_name), trends=[])
+        return NewsletterDraft(headline=DEGRADED_HEADLINE, items=heuristic_rank(items, sources_by_name), trends=[])
 
 
 def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> list[RankedItem]:
@@ -43,8 +47,8 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
             importance=min(100, int(rank_item(item, sources_by_name) * 4)),
             translated_title=None,
             summary=textwrap.shorten(item.summary or item.title, width=240, placeholder="..."),
-            why="Heuristic ranking based on recency and source.",
-            takeaway="Manual review recommended.",
+            why="Selección automática por recencia y relevancia de la fuente (IA no disponible).",
+            takeaway="Merece un vistazo rápido.",
         )
         for index, item in enumerate(ranked_items, start=1)
     ]

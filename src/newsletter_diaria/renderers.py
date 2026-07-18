@@ -72,9 +72,11 @@ def render_email_text(draft: NewsletterDraft) -> str:
                 f"Fecha: {when}",
                 f"Link: {item.link}",
                 f"Resumen: {ranked.summary or '—'}",
-                "",
             ]
         )
+        if ranked.why:
+            lines.append(f"Por qué importa: {ranked.why}")
+        lines.append("")
     return "\n".join(lines).strip() + "\n"
 
 
@@ -107,6 +109,7 @@ def render_email_html(draft: NewsletterDraft) -> str:
                 <h3><a href="{esc(ranked.item.link)}">{esc(ranked.translated_title or ranked.item.title)}</a></h3>
                 <p class="source">{esc(ranked.item.source)} · {esc(fmt_dt(ranked.item))}</p>
                 <p class="summary">{esc(ranked.summary or ranked.item.summary or '—')}</p>
+                {('<p class="why"><span class="why-label">Por qué importa:</span> ' + esc(ranked.why) + '</p>') if ranked.why else ''}
               </td>
             </tr>
         """
@@ -148,6 +151,8 @@ def render_email_html(draft: NewsletterDraft) -> str:
       h3 a {{ color: #0f172a; text-decoration: none; }}
       .source {{ margin: 0 0 12px; color: #64748b; font-size: 13px; }}
       .summary {{ margin: 0; color: #334155; line-height: 1.6; font-size: 15px; }}
+      .why {{ margin: 10px 0 0; padding: 10px 12px; background: #f8fafc; border-left: 3px solid #1d4ed8; border-radius: 8px; color: #475569; font-size: 13.5px; line-height: 1.55; }}
+      .why-label {{ font-weight: 700; color: #1d4ed8; }}
       .footer {{ padding: 18px 24px 28px; color: #64748b; font-size: 12px; text-align: center; }}
       @media (max-width: 640px) {{
         .wrap {{ padding: 12px 0; }}
@@ -168,6 +173,8 @@ def render_email_html(draft: NewsletterDraft) -> str:
         .source {{ color: #93a1b4 !important; }}
         .score {{ color: #93a1b4 !important; }}
         .summary {{ color: #c3cddb !important; }}
+        .why {{ background: #131c2b !important; border-left-color: #3b6fe0 !important; color: #aab6c8 !important; }}
+        .why-label {{ color: #9fbcff !important; }}
         .badge {{ background: #23345a !important; color: #9fbcff !important; }}
         .footer {{ color: #7d8aa0 !important; }}
       }}
