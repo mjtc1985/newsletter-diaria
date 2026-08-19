@@ -16,7 +16,8 @@ def render_console(draft: NewsletterDraft) -> None:
     for ranked in draft.items:
         item = ranked.item
         when = item.published_at.isoformat() if item.published_at else "no date"
-        print(f"{ranked.rank}. {item.title}  [{ranked.importance}/100]")
+        title = ranked.translated_title or item.title
+        print(f"{ranked.rank}. {title}  [{ranked.importance}/100]")
         print(f"   Source: {item.source}")
         print(f"   Date:   {when}")
         print(f"   Link:   {item.link}")
@@ -39,9 +40,10 @@ def write_markdown(draft: NewsletterDraft, output: Path) -> None:
     for ranked in draft.items:
         item = ranked.item
         when = item.published_at.isoformat() if item.published_at else "no date"
+        title = ranked.translated_title or item.title
         lines.extend(
             [
-                f"{ranked.rank}. **{item.title}**  _[{ranked.importance}/100]_",
+                f"{ranked.rank}. **{title}**  _[{ranked.importance}/100]_",
                 f"   - Source: {item.source}",
                 f"   - Date: {when}",
                 f"   - Link: {item.link}",

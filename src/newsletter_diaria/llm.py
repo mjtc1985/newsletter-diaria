@@ -85,12 +85,15 @@ class OpenCodeProvider:
             ]
         }
         prompt = (
-            "Responde en español y SOLO con JSON válido. "
-            "Resume TODOS los artículos de la lista en una sola respuesta. "
-            "Traduce también el título de cada artículo a un español natural, manteniendo intactos los nombres propios y marcas. "
-            "Haz que cada resumen sea un abstract breve y natural, de 2 a 4 frases, sin listas. "
-            "Usa solo los campos dados. "
-            "Devuelve exactamente {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
+            "Responde en español y SOLO con JSON válido.\n"
+            "Resume cada uno de los artículos de la lista.\n"
+            "REGLA OBLIGATORIA PARA CADA ARTÍCULO:\n"
+            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios de personas, empresas y tecnologías/marcas sin traducir).\n"
+            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
+            "- 'why': Explicación de por qué importa al sector tecnológico/IA/desarrollo.\n"
+            "- 'takeaway': Conclusión clave o lección práctica.\n"
+            "Todos los campos (uid, title, summary, why, takeaway) son estrictamente obligatorios en cada elemento de 'items'.\n"
+            "Devuelve exactamente: {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}.\n"
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Calling %s to summarize %d items in batch", self._cli_label(), len(ranked_ids))
@@ -106,11 +109,14 @@ class OpenCodeProvider:
             "summary": item.summary,
         }
         prompt = (
-            "Responde en español y SOLO con JSON válido. "
-            "Resume el artículo sin inventar nada. "
-            "Traduce también el título a un español natural, manteniendo intactos los nombres propios y marcas. "
-            "Escribe un abstract breve y natural, de 2 a 4 frases, sin listas. "
-            "Devuelve exactamente {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}. "
+            "Responde en español y SOLO con JSON válido.\n"
+            "Resume el artículo sin inventar nada.\n"
+            "REGLAS OBLIGATORIAS:\n"
+            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios y marcas).\n"
+            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
+            "- 'why': Explicación de por qué importa.\n"
+            "- 'takeaway': Conclusión clave.\n"
+            "Devuelve exactamente: {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}.\n"
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
@@ -206,12 +212,15 @@ class OpenAICompatibleProvider:
             ]
         }
         prompt = (
-            "Responde en español y SOLO con JSON válido. "
-            "Resume TODOS los artículos de la lista en una sola respuesta. "
-            "Traduce también el título de cada artículo a un español natural, manteniendo intactos los nombres propios y marcas. "
-            "Haz que cada resumen sea un abstract breve y natural, de 2 a 4 frases, sin listas. "
-            "Usa solo los campos dados. "
-            "Devuelve exactamente {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}. "
+            "Responde en español y SOLO con JSON válido.\n"
+            "Resume cada uno de los artículos de la lista.\n"
+            "REGLA OBLIGATORIA PARA CADA ARTÍCULO:\n"
+            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios de personas, empresas y tecnologías/marcas sin traducir).\n"
+            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
+            "- 'why': Explicación de por qué importa al sector tecnológico/IA/desarrollo.\n"
+            "- 'takeaway': Conclusión clave o lección práctica.\n"
+            "Todos los campos (uid, title, summary, why, takeaway) son estrictamente obligatorios en cada elemento de 'items'.\n"
+            "Devuelve exactamente: {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}.\n"
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         logger.info("Calling OpenAI-compatible backend to summarize %d items in batch", len(ranked_ids))
@@ -227,11 +236,14 @@ class OpenAICompatibleProvider:
             "summary": item.summary,
         }
         prompt = (
-            "Responde en español y SOLO con JSON válido. "
-            "Resume el artículo sin inventar nada. "
-            "Traduce también el título a un español natural, manteniendo intactos los nombres propios y marcas. "
-            "Escribe un abstract breve y natural, de 2 a 4 frases, sin listas. "
-            "Devuelve exactamente {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}. "
+            "Responde en español y SOLO con JSON válido.\n"
+            "Resume el artículo sin inventar nada.\n"
+            "REGLAS OBLIGATORIAS:\n"
+            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios y marcas).\n"
+            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
+            "- 'why': Explicación de por qué importa.\n"
+            "- 'takeaway': Conclusión clave.\n"
+            "Devuelve exactamente: {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}.\n"
             f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
         )
         return self._chat_json(prompt)

@@ -67,41 +67,56 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
     return NewsletterDraft(headline=headline or "Resumen diario", items=summarized, trends=trends)
 
 
+SUMMARY_CHUNK_SIZE = 5
+
+
 def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provider) -> list[RankedItem]:
     if not ranked_ids:
         return []
-    try:
-        data = provider.summarize_batch(ranked_ids)
-        summaries = parse_summary_batch_result(data, ranked_ids)
-        if summaries:
-            return summaries
-    except Exception as exc:
-        logger.warning("Summary batch failed: %s; using per-item fallback", exc)
 
-    summarized: list[RankedItem] = []
-    total = len(ranked_ids)
-    for index, (item, rank, importance) in enumerate(ranked_ids, start=1):
-        logger.info("[%d/%d] Summarizing individually: %s", index, total, item.title)
-        # Resiliencia: si un resumen individual falla (p. ej. 429 puntual), NO tiramos
-        # toda la newsletter a heurístico; conservamos el ranking/titular de IA y para
-        # ese artículo usamos el texto del propio feed.
+    summarized_by_uid: dict[str, RankedItem] = {}
+
+    # Dividir en sublotes para mantener la atención del LLM y evitar que omita claves
+    for i in range(0, len(ranked_ids), SUMMARY_CHUNK_SIZE):
+        chunk = ranked_ids[i : i + SUMMARY_CHUNK_SIZE]
+        chunk_results: list[RankedItem] = []
         try:
-            summary_data = provider.summarize_one(item)
+            data = provider.summarize_batch(chunk)
+            chunk_results = parse_summary_batch_result(data, chunk)
         except Exception as exc:
-            logger.warning("Per-item summary failed for '%s': %s; using feed text", item.title, exc)
-            summary_data = {}
-        summarized.append(
-            RankedItem(
-                item=item,
-                rank=rank,
-                importance=importance,
-                translated_title=str(summary_data.get("title", "")).strip() or None,
-                summary=str(summary_data.get("summary", "")).strip() or item.summary,
-                why=str(summary_data.get("why", "")).strip(),
-                takeaway=str(summary_data.get("takeaway", "")).strip(),
+            logger.warning(
+                "Summary chunk [%d-%d] failed: %s; using per-item fallback",
+                i + 1,
+                min(i + SUMMARY_CHUNK_SIZE, len(ranked_ids)),
+                exc,
             )
-        )
-    return summarized
+
+        results_by_uid = {r.item.uid: r for r in chunk_results}
+
+        # Para cada elemento del chunk, asegurar que tengamos un resultado completo
+        for item, rank, importance in chunk:
+            ranked_item = results_by_uid.get(item.uid)
+            # Si el elemento no vino en la respuesta por lotes o no tiene resumen
+            if not ranked_item or not ranked_item.summary:
+                logger.info("Summarizing individually (fallback): %s", item.title)
+                try:
+                    summary_data = provider.summarize_one(item)
+                except Exception as exc:
+                    logger.warning("Per-item summary failed for '%s': %s; using feed text", item.title, exc)
+                    summary_data = {}
+
+                ranked_item = RankedItem(
+                    item=item,
+                    rank=rank,
+                    importance=importance,
+                    translated_title=str(summary_data.get("title", "")).strip() or None,
+                    summary=str(summary_data.get("summary", "")).strip() or item.summary,
+                    why=str(summary_data.get("why", "")).strip(),
+                    takeaway=str(summary_data.get("takeaway", "")).strip(),
+                )
+            summarized_by_uid[item.uid] = ranked_item
+
+    return [summarized_by_uid[item.uid] for item, _, _ in ranked_ids if item.uid in summarized_by_uid]
 
 
 def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int]]) -> list[RankedItem]:
