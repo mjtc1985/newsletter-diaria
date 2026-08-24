@@ -13,12 +13,6 @@ from newsletter_diaria.sources import load_sources, sources_by_name
 
 logger = logging.getLogger("newsletter_diaria")
 
-# Si tras el corte de --hours quedan menos noticias que esto, ampliamos la ventana
-# (fines de semana / festivos publican poco y el correo saldría casi vacío).
-MIN_RECENT_ITEMS = 6
-WIDEN_STEPS_HOURS = (48, 72)
-
-
 def run(config: AppConfig) -> int:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     logger.info("Starting daily newsletter run")
@@ -39,14 +33,15 @@ def run(config: AppConfig) -> int:
 
     items = filter_recent(all_items, hours=config.hours)
     logger.info("Filtered down to %d recent items (last %d hours)", len(items), config.hours)
-    for widen_hours in WIDEN_STEPS_HOURS:
-        if len(items) >= MIN_RECENT_ITEMS or config.hours >= widen_hours:
-            break
-        items = filter_recent(all_items, hours=widen_hours)
-        logger.info("Too few items; widened window to %dh -> %d items", widen_hours, len(items))
 
     items = dedupe(items)
     logger.info("%d items remain after deduplication", len(items))
+
+    if not items:
+        logger.info("No recent news items found in the last %d hours. Skipping newsletter generation.", config.hours)
+        print("No recent news items found.")
+        return 0
+
     items = cap_candidates(items, config.ai_candidates)
     logger.info("Ranking candidates: %d", len(items))
 
@@ -60,6 +55,7 @@ def run(config: AppConfig) -> int:
         draft = NewsletterDraft(headline=draft.headline, items=draft.items[: config.limit], trends=draft.trends)
 
     if not draft.items:
+        logger.info("Generated draft contains no items. Skipping email dispatch.")
         print("No recent news items found.")
         return 0
 

@@ -269,7 +269,7 @@ class OpenAICompatibleProvider:
             is_last = index == len(models) - 1
             try:
                 data = self._post_chat(prompt, model, allow_backoff=is_last)
-            except RuntimeError as exc:
+            except Exception as exc:
                 last_exc = exc
                 if not is_last:
                     logger.warning("Modelo '%s' no disponible (%s); probando reserva '%s'",
@@ -323,11 +323,14 @@ class OpenAICompatibleProvider:
                     time.sleep(delay)
                     continue
                 raise last_exc from exc
-            except error.URLError as exc:
+            except (error.URLError, TimeoutError, OSError) as exc:
                 last_exc = RuntimeError(f"Could not reach OpenAI-compatible backend: {exc}")
                 if attempt < attempts:
                     time.sleep(5.0 * attempt)
                     continue
+                raise last_exc from exc
+            except Exception as exc:
+                last_exc = RuntimeError(f"Unexpected error communicating with OpenAI-compatible backend: {exc}")
                 raise last_exc from exc
         raise last_exc or RuntimeError("OpenAI-compatible backend failed after retries")
 
