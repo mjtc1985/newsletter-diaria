@@ -20,8 +20,12 @@ logger = logging.getLogger("newsletter_diaria")
 HTTP_RETRY_STATUS = {429, 500, 502, 503, 504}
 HTTP_MAX_ATTEMPTS = 3
 HTTP_RETRY_CAP_SECONDS = 35.0
-# Modelo de reserva (free tier más amplio) al que caer si el bueno agota cuota.
-FALLBACK_MODELS = ["gemini-flash-lite-latest"]
+FALLBACK_MODELS = [
+    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+]
 
 
 class LLMProvider(Protocol):
