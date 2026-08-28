@@ -256,9 +256,8 @@ class OpenAICompatibleProvider:
                 f"Missing API key for OpenAI-compatible backend. Set --llm-api-key or {self.config.api_key_env}"
             )
 
-        # Intentamos primero el modelo bueno; si agota cuota (429), caemos rápido al
-        # de reserva (free tier más amplio). El backoff con esperas solo se usa en el
-        # último modelo de la lista, para no ralentizar cuando hay alternativa lista.
+        # Intentamos primero el modelo bueno; si agota cuota (429) o falla JSON, caemos
+        # rápido al de reserva. El backoff con esperas solo se usa en el último modelo.
         models: list[str] = []
         for candidate in [self.model, *FALLBACK_MODELS]:
             if candidate and candidate not in models:
@@ -269,20 +268,20 @@ class OpenAICompatibleProvider:
             is_last = index == len(models) - 1
             try:
                 data = self._post_chat(prompt, model, allow_backoff=is_last)
+                if index > 0:
+                    logger.warning("Generado con modelo de reserva: %s", model)
+                try:
+                    content = data["choices"][0]["message"]["content"]
+                except (KeyError, IndexError, TypeError) as exc:
+                    raise RuntimeError("OpenAI-compatible backend returned an unexpected response shape") from exc
+                return extract_json_object(normalize_content(content))
             except Exception as exc:
                 last_exc = exc
                 if not is_last:
-                    logger.warning("Modelo '%s' no disponible (%s); probando reserva '%s'",
+                    logger.warning("Modelo '%s' falló o devolvió JSON inválido (%s); probando reserva '%s'",
                                    model, str(exc)[:80], models[index + 1])
                     continue
                 raise
-            if index > 0:
-                logger.warning("Generado con modelo de reserva: %s", model)
-            try:
-                content = data["choices"][0]["message"]["content"]
-            except (KeyError, IndexError, TypeError) as exc:
-                raise RuntimeError("OpenAI-compatible backend returned an unexpected response shape") from exc
-            return extract_json_object(normalize_content(content))
         raise last_exc or RuntimeError("OpenAI-compatible backend failed")
 
     def _post_chat(self, prompt: str, model: str, allow_backoff: bool) -> dict:
@@ -378,7 +377,31 @@ def extract_json_object(text: str) -> dict:
     end = cleaned.rfind("}")
     if start == -1 or end == -1 or end < start:
         raise ValueError("The AI did not return valid JSON")
-    return json.loads(cleaned[start : end + 1])
+    sub = cleaned[start : end + 1]
+
+    try:
+        return json.loads(sub)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Reparaciones automáticas de JSON para anomalías sintácticas habituales de LLMs:
+    # 1. Normalizar comillas tipográficas
+    repaired = sub.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
+
+    # 2. Corregir claves mal formadas como `": "key":` o `': "key":` o `": key":`
+    repaired = re.sub(r'[\"\x27]\s*:\s*[\"\x27]([a-zA-Z0-9_-]+)[\"\x27]\s*:', r'"\1":', repaired)
+
+    # 3. Eliminar comentarios estilo JS (// ... y /* ... */)
+    repaired = re.sub(r'//.*?\n', '\n', repaired)
+    repaired = re.sub(r'/\*.*?\*/', '', repaired, flags=re.S)
+
+    # 4. Eliminar comas finales antes de cierre de objeto o array
+    repaired = re.sub(r',\s*([\}\]])', r'\1', repaired)
+
+    # 5. Intentar entrecomillar claves sin comillas como `{headline: "..."}`
+    repaired = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', repaired)
+
+    return json.loads(repaired)
 
 
 def normalize_content(content: object) -> str:

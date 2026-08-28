@@ -56,14 +56,22 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
 
 def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
     provider = build_provider(config)
-    ranking = provider.rank(items)
-    ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
-    logger.info("LLM backend returned %d ranked items", len(ranked_ids))
+    try:
+        ranking = provider.rank(items)
+        ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
+        logger.info("LLM backend returned %d ranked items", len(ranked_ids))
+        headline = str(ranking.get("headline", "Resumen diario")).strip() if isinstance(ranking, dict) else "Resumen diario"
+        trends = [str(trend).strip() for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else []) if str(trend).strip()]
+    except Exception as exc:
+        logger.warning("LLM ranking failed (%s); using heuristic ranking for order and continuing with AI summaries", exc)
+        heuristic_items = heuristic_rank(items, sources_by_name)
+        ranked_ids = [(h.item, h.rank, h.importance) for h in heuristic_items]
+        headline = "Resumen diario de tecnología"
+        trends = []
+
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
     summarized.sort(key=lambda item: (item.rank, -item.importance))
     logger.info("Summaries completed")
-    headline = str(ranking.get("headline", "Resumen diario")).strip() if isinstance(ranking, dict) else "Resumen diario"
-    trends = [str(trend).strip() for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else []) if str(trend).strip()]
     return NewsletterDraft(headline=headline or "Resumen diario", items=summarized, trends=trends)
 
 

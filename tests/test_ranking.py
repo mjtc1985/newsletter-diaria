@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from newsletter_diaria.models import Item, RankedItem
 from newsletter_diaria.ranking import (
@@ -148,6 +148,46 @@ class RankingAndSummariesTest(unittest.TestCase):
         self.assertEqual(results[1].translated_title, "Título 2 fallback")
         self.assertEqual(results[1].summary, "Resumen 2 fallback")
         provider.summarize_one.assert_called_once_with(item2)
+
+    def test_llm_rank_and_summarize_recovers_from_rank_failure(self) -> None:
+        from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
+        from newsletter_diaria.ranking import llm_rank_and_summarize
+        from pathlib import Path
+
+        item = Item(
+            uid="u1",
+            source="Test",
+            title="English Title",
+            link="http://example.com/1",
+            published_at=datetime.now(timezone.utc),
+            summary="Raw summary",
+        )
+        config = LLMConfig(
+            backend="openai-compatible",
+            opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+            openai_compatible=OpenAICompatibleConfig(base_url="http://example.com", api_key="k", api_key_env="K", model="m", json_mode=True),
+        )
+
+        mock_provider = MagicMock()
+        mock_provider.rank.side_effect = RuntimeError("Ranking failed")
+        mock_provider.summarize_batch.return_value = {
+            "items": [
+                {
+                    "uid": "u1",
+                    "title": "Título traducido",
+                    "summary": "Resumen IA",
+                    "why": "Importancia IA",
+                    "takeaway": "Conclusión IA",
+                }
+            ]
+        }
+
+        with patch("newsletter_diaria.ranking.build_provider", return_value=mock_provider):
+            draft = llm_rank_and_summarize([item], config, {})
+
+        self.assertEqual(len(draft.items), 1)
+        self.assertEqual(draft.items[0].translated_title, "Título traducido")
+        self.assertEqual(draft.items[0].summary, "Resumen IA")
 
 
 if __name__ == "__main__":
