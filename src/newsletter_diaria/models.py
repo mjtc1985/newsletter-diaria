@@ -14,6 +14,11 @@ class Source:
     kind: str = "feed"
     max_items: int = 5
     parser: str | None = None
+    # Fuentes del mismo dueno comparten cuota: "labs", "cloud", "github"...
+    # Vacio significa que la fuente es su propio grupo.
+    group: str = ""
+    # Subcadenas de URL que se descartan al ingerir (p. ej. "/changelog/").
+    exclude_url_patterns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -35,6 +40,10 @@ class RankedItem:
     summary: str
     why: str
     takeaway: str
+    # La IA puede marcar un articulo como ruido (changelog, caso de cliente,
+    # nota promocional) en lugar de inventarle relevancia.
+    discarded: bool = False
+    discard_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -42,6 +51,9 @@ class NewsletterDraft:
     headline: str
     items: list[RankedItem]
     trends: list[str]
+    # True cuando la importancia sale de la heuristica y no del ranker. Las dos
+    # escalas no son comparables, asi que el umbral editorial no se le aplica.
+    heuristic_importance: bool = False
 
 
 @dataclass(frozen=True)
@@ -70,6 +82,34 @@ class LLMConfig:
 
 
 @dataclass(frozen=True)
+class EditorialPolicy:
+    """Reglas de seleccion que se aplican despues del ranking y los resumenes."""
+
+    min_importance: int
+    max_items: int
+    max_per_source: int
+    max_per_group: int
+    reserved_topics: frozenset[str]
+    reserved_slots: int
+    relax_floor_if_empty: bool
+    relaxed_max_items: int
+
+
+DEFAULT_RESERVED_TOPICS = frozenset({"opinion", "research", "security"})
+
+DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
+    min_importance=40,
+    max_items=10,
+    max_per_source=1,
+    max_per_group=2,
+    reserved_topics=DEFAULT_RESERVED_TOPICS,
+    reserved_slots=3,
+    relax_floor_if_empty=True,
+    relaxed_max_items=3,
+)
+
+
+@dataclass(frozen=True)
 class AppConfig:
     hours: int
     limit: int
@@ -89,3 +129,6 @@ class AppConfig:
     smtp_ssl: bool
     test_email: bool
     send_latest: bool
+    seen_file: Path = Path("output/seen.json")
+    seen_retention_days: int = 30
+    editorial: EditorialPolicy = DEFAULT_EDITORIAL_POLICY

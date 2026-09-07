@@ -28,6 +28,50 @@ FALLBACK_MODELS = [
 ]
 
 
+# Reglas del summarizer. La clave es que el modelo pueda decir "esto es ruido"
+# en lugar de verse obligado a fabricar relevancia: si 'why' y 'takeaway' son
+# obligatorios, el modelo los inventa para una entrada de changelog.
+SUMMARY_RULES = (
+    "Eres el editor de una newsletter técnica. Tu trabajo NO es justificar cada artículo:\n"
+    "es distinguir lo que aporta de lo que es ruido.\n"
+    "- 'title': título traducido a un español natural y fluido (conserva sin traducir los nombres\n"
+    "  propios de personas, empresas y tecnologías/marcas).\n"
+    "- 'summary': abstract breve y natural de 2 a 4 frases, sin listas y sin inventar nada.\n"
+    "- 'descartar': true si el artículo es una entrada de changelog, una nota de producto del tipo\n"
+    "  'ya disponible en X', un caso de cliente o testimonial, una ronda de financiación o material\n"
+    "  promocional sin contenido técnico. Si lo descartas, rellena 'motivo_descarte' con una frase\n"
+    "  y deja 'why' y 'takeaway' vacíos.\n"
+    "- 'why': solo si NO lo descartas y de verdad cambia algo para quien desarrolla, opera\n"
+    "  infraestructura o trabaja con IA. Si no encuentras un motivo real, devuelve cadena vacía en\n"
+    "  lugar de inventarlo. Una cadena vacía es una respuesta correcta y esperada.\n"
+    "- 'takeaway': solo si hay una conclusión práctica concreta. Cadena vacía si no la hay.\n"
+    "Obligatorios siempre: 'title' y 'summary'. Los demás campos pueden ir vacíos.\n"
+)
+
+
+def build_summary_batch_prompt(payload: dict) -> str:
+    return (
+        "Responde en español y SOLO con JSON válido.\n"
+        "Procesa cada uno de los artículos de la lista.\n"
+        + SUMMARY_RULES
+        + "'uid' es obligatorio y debe copiarse tal cual en cada elemento de 'items'.\n"
+        "Devuelve exactamente: {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,"
+        "\"why\":string,\"takeaway\":string,\"descartar\":boolean,\"motivo_descarte\":string}]}.\n"
+        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+    )
+
+
+def build_summary_one_prompt(payload: dict) -> str:
+    return (
+        "Responde en español y SOLO con JSON válido.\n"
+        "Procesa el artículo.\n"
+        + SUMMARY_RULES
+        + "Devuelve exactamente: {\"title\":string,\"summary\":string,\"why\":string,"
+        "\"takeaway\":string,\"descartar\":boolean,\"motivo_descarte\":string}.\n"
+        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+    )
+
+
 class LLMProvider(Protocol):
     def rank(self, items: list[Item]) -> dict:
         raise NotImplementedError
@@ -88,18 +132,7 @@ class OpenCodeProvider:
                 for item, rank, importance in ranked_ids
             ]
         }
-        prompt = (
-            "Responde en español y SOLO con JSON válido.\n"
-            "Resume cada uno de los artículos de la lista.\n"
-            "REGLA OBLIGATORIA PARA CADA ARTÍCULO:\n"
-            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios de personas, empresas y tecnologías/marcas sin traducir).\n"
-            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
-            "- 'why': Explicación de por qué importa al sector tecnológico/IA/desarrollo.\n"
-            "- 'takeaway': Conclusión clave o lección práctica.\n"
-            "Todos los campos (uid, title, summary, why, takeaway) son estrictamente obligatorios en cada elemento de 'items'.\n"
-            "Devuelve exactamente: {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}.\n"
-            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
-        )
+        prompt = build_summary_batch_prompt(payload)
         logger.info("Calling %s to summarize %d items in batch", self._cli_label(), len(ranked_ids))
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
 
@@ -112,17 +145,7 @@ class OpenCodeProvider:
             "published_at": item.published_at.isoformat() if item.published_at else None,
             "summary": item.summary,
         }
-        prompt = (
-            "Responde en español y SOLO con JSON válido.\n"
-            "Resume el artículo sin inventar nada.\n"
-            "REGLAS OBLIGATORIAS:\n"
-            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios y marcas).\n"
-            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
-            "- 'why': Explicación de por qué importa.\n"
-            "- 'takeaway': Conclusión clave.\n"
-            "Devuelve exactamente: {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}.\n"
-            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
-        )
+        prompt = build_summary_one_prompt(payload)
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
 
     def _cli_label(self) -> str:
@@ -215,18 +238,7 @@ class OpenAICompatibleProvider:
                 for item, rank, importance in ranked_ids
             ]
         }
-        prompt = (
-            "Responde en español y SOLO con JSON válido.\n"
-            "Resume cada uno de los artículos de la lista.\n"
-            "REGLA OBLIGATORIA PARA CADA ARTÍCULO:\n"
-            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios de personas, empresas y tecnologías/marcas sin traducir).\n"
-            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
-            "- 'why': Explicación de por qué importa al sector tecnológico/IA/desarrollo.\n"
-            "- 'takeaway': Conclusión clave o lección práctica.\n"
-            "Todos los campos (uid, title, summary, why, takeaway) son estrictamente obligatorios en cada elemento de 'items'.\n"
-            "Devuelve exactamente: {\"items\":[{\"uid\":string,\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}]}.\n"
-            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
-        )
+        prompt = build_summary_batch_prompt(payload)
         logger.info("Calling OpenAI-compatible backend to summarize %d items in batch", len(ranked_ids))
         return self._chat_json(prompt)
 
@@ -239,17 +251,7 @@ class OpenAICompatibleProvider:
             "published_at": item.published_at.isoformat() if item.published_at else None,
             "summary": item.summary,
         }
-        prompt = (
-            "Responde en español y SOLO con JSON válido.\n"
-            "Resume el artículo sin inventar nada.\n"
-            "REGLAS OBLIGATORIAS:\n"
-            "- 'title': DEBE ser el título traducido a un español natural y fluido (conserva únicamente nombres propios y marcas).\n"
-            "- 'summary': Abstract breve y natural de 2 a 4 frases, sin listas.\n"
-            "- 'why': Explicación de por qué importa.\n"
-            "- 'takeaway': Conclusión clave.\n"
-            "Devuelve exactamente: {\"title\":string,\"summary\":string,\"why\":string,\"takeaway\":string}.\n"
-            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
-        )
+        prompt = build_summary_one_prompt(payload)
         return self._chat_json(prompt)
 
     def _chat_json(self, prompt: str) -> dict:

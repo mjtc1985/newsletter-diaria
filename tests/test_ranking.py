@@ -149,6 +149,66 @@ class RankingAndSummariesTest(unittest.TestCase):
         self.assertEqual(results[1].summary, "Resumen 2 fallback")
         provider.summarize_one.assert_called_once_with(item2)
 
+    def test_parse_summary_batch_result_reads_ai_discards(self) -> None:
+        item = Item(
+            uid="u1",
+            source="Vercel Blog",
+            title="X now available on AI Gateway",
+            link="http://example.com/1",
+            published_at=datetime.now(timezone.utc),
+            summary="Raw",
+        )
+        data = {
+            "items": [
+                {
+                    "uid": "u1",
+                    "title": "X ya disponible en AI Gateway",
+                    "summary": "Entrada de changelog.",
+                    "why": "",
+                    "takeaway": "",
+                    "descartar": True,
+                    "motivo_descarte": "Entrada de changelog sin contenido tecnico.",
+                }
+            ]
+        }
+        result = parse_summary_batch_result(data, [(item, 1, 30)])
+        self.assertTrue(result[0].discarded)
+        self.assertEqual(result[0].discard_reason, "Entrada de changelog sin contenido tecnico.")
+        self.assertEqual(result[0].why, "")
+
+    def test_discarded_item_is_not_retried_individually(self) -> None:
+        item = Item(
+            uid="u1",
+            source="Vercel Blog",
+            title="X now available",
+            link="http://example.com/1",
+            published_at=datetime.now(timezone.utc),
+            summary="Raw",
+        )
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [
+                {
+                    "uid": "u1",
+                    "title": "Titulo",
+                    "summary": "",
+                    "descartar": True,
+                    "motivo_descarte": "changelog",
+                }
+            ]
+        }
+        results = summarize_ranked_items_batch([(item, 1, 30)], provider)
+        self.assertTrue(results[0].discarded)
+        provider.summarize_one.assert_not_called()
+
+    def test_string_booleans_are_coerced(self) -> None:
+        from newsletter_diaria.ranking import coerce_bool
+
+        for value in (True, "true", "True", "si", "sí", "1", "yes"):
+            self.assertTrue(coerce_bool(value), value)
+        for value in (False, "false", "no", "", None, 0):
+            self.assertFalse(coerce_bool(value), value)
+
     def test_llm_rank_and_summarize_recovers_from_rank_failure(self) -> None:
         from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
         from newsletter_diaria.ranking import llm_rank_and_summarize

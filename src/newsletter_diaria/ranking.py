@@ -22,7 +22,12 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
 
     if ai_mode == "off":
         logger.info("AI disabled: using heuristic ranking")
-        return NewsletterDraft(headline=DEGRADED_HEADLINE, items=heuristic_rank(items, sources_by_name), trends=[])
+        return NewsletterDraft(
+            headline=DEGRADED_HEADLINE,
+            items=heuristic_rank(items, sources_by_name),
+            trends=[],
+            heuristic_importance=True,
+        )
 
     try:
         backend_label = llm_config.backend
@@ -35,7 +40,12 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
             print(f"[warn] LLM backend failed ({exc}); using heuristic ranking so the newsletter still ships.", file=sys.stderr)
         else:
             print(f"[warn] LLM backend failed ({exc}); using heuristic ranking.", file=sys.stderr)
-        return NewsletterDraft(headline=DEGRADED_HEADLINE, items=heuristic_rank(items, sources_by_name), trends=[])
+        return NewsletterDraft(
+            headline=DEGRADED_HEADLINE,
+            items=heuristic_rank(items, sources_by_name),
+            trends=[],
+            heuristic_importance=True,
+        )
 
 
 def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> list[RankedItem]:
@@ -56,6 +66,7 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
 
 def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
     provider = build_provider(config)
+    heuristic_importance = False
     try:
         ranking = provider.rank(items)
         ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
@@ -68,11 +79,17 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         ranked_ids = [(h.item, h.rank, h.importance) for h in heuristic_items]
         headline = "Resumen diario de tecnología"
         trends = []
+        heuristic_importance = True
 
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
     summarized.sort(key=lambda item: (item.rank, -item.importance))
     logger.info("Summaries completed")
-    return NewsletterDraft(headline=headline or "Resumen diario", items=summarized, trends=trends)
+    return NewsletterDraft(
+        headline=headline or "Resumen diario",
+        items=summarized,
+        trends=trends,
+        heuristic_importance=heuristic_importance,
+    )
 
 
 SUMMARY_CHUNK_SIZE = 5
@@ -104,8 +121,9 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
         # Para cada elemento del chunk, asegurar que tengamos un resultado completo
         for item, rank, importance in chunk:
             ranked_item = results_by_uid.get(item.uid)
-            # Si el elemento no vino en la respuesta por lotes o no tiene resumen
-            if not ranked_item or not ranked_item.summary:
+            # Si el elemento no vino en la respuesta por lotes o no tiene resumen.
+            # Un descarte explicito ya es una respuesta completa: no se reintenta.
+            if not ranked_item or (not ranked_item.discarded and not ranked_item.summary):
                 logger.info("Summarizing individually (fallback): %s", item.title)
                 try:
                     summary_data = provider.summarize_one(item)
@@ -121,6 +139,8 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
                     summary=str(summary_data.get("summary", "")).strip() or item.summary,
                     why=str(summary_data.get("why", "")).strip(),
                     takeaway=str(summary_data.get("takeaway", "")).strip(),
+                    discarded=coerce_bool(summary_data.get("descartar")),
+                    discard_reason=str(summary_data.get("motivo_descarte", "")).strip(),
                 )
             summarized_by_uid[item.uid] = ranked_item
 
@@ -148,6 +168,8 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
                 summary=str(raw.get("summary", item.summary)).strip(),
                 why=str(raw.get("why", "")).strip(),
                 takeaway=str(raw.get("takeaway", "")).strip(),
+                discarded=coerce_bool(raw.get("descartar")),
+                discard_reason=str(raw.get("motivo_descarte", "")).strip(),
             )
         )
     return result
@@ -190,6 +212,15 @@ def parse_ranking_result(data: dict, items: list[Item], sources_by_name: dict[st
             next_rank += 1
 
     return ordered
+
+
+def coerce_bool(value: object) -> bool:
+    """El backend a veces devuelve el booleano como cadena ("true", "si")."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "1", "si", "sí", "yes"}
+    return bool(value)
 
 
 def coerce_int(value: object, default: int) -> int:
