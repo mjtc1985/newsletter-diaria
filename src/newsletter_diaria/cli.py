@@ -4,18 +4,34 @@ import argparse
 import os
 from pathlib import Path
 
-from newsletter_diaria.models import AppConfig, LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
+from newsletter_diaria.models import (
+    DEFAULT_EDITORIAL_POLICY,
+    AppConfig,
+    EditorialPolicy,
+    LLMConfig,
+    OpenAICompatibleConfig,
+    OpenCodeConfig,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate the daily newsletter from the command line")
-    parser.add_argument("--hours", type=int, default=24, help="Time window in hours to include")
-    parser.add_argument("--limit", type=int, default=0, help="Maximum number of news items (0 = unlimited)")
+    parser.add_argument("--hours", type=int, default=72, help="Time window in hours to include")
+    parser.add_argument("--limit", type=int, default=DEFAULT_EDITORIAL_POLICY.max_items, help="Maximum number of news items in the edition (0 = unlimited)")
     parser.add_argument("--output", type=Path, default=Path("output/daily.md"), help="Output Markdown path")
     parser.add_argument("--cache-file", type=Path, default=Path("output/latest.json"), help="Path to the latest generated newsletter JSON cache")
     parser.add_argument("--sources", type=Path, default=Path("sources.json"), help="Path to the sources JSON config")
     parser.add_argument("--ai-mode", choices=("auto", "required", "off"), default="auto", help="Use AI for ranking and summaries")
     parser.add_argument("--ai-candidates", type=int, default=30, help="Maximum number of candidates sent to AI")
+    parser.add_argument("--seen-file", type=Path, default=Path("output/seen.json"), help="Path to the store of already sent articles")
+    parser.add_argument("--seen-retention-days", type=int, default=30, help="How long an article stays in the seen store")
+    parser.add_argument("--min-importance", type=int, default=DEFAULT_EDITORIAL_POLICY.min_importance, help="Drop items ranked below this importance")
+    parser.add_argument("--max-per-source", type=int, default=DEFAULT_EDITORIAL_POLICY.max_per_source, help="Maximum items per source in one edition (0 = unlimited)")
+    parser.add_argument("--max-per-group", type=int, default=DEFAULT_EDITORIAL_POLICY.max_per_group, help="Maximum items per source group in one edition (0 = unlimited)")
+    parser.add_argument("--reserved-topics", default=",".join(sorted(DEFAULT_EDITORIAL_POLICY.reserved_topics)), help="Comma-separated topics that get reserved slots")
+    parser.add_argument("--reserved-slots", type=int, default=DEFAULT_EDITORIAL_POLICY.reserved_slots, help="Slots held for the reserved topics")
+    parser.add_argument("--relax-floor-if-empty", action=argparse.BooleanOptionalAction, default=DEFAULT_EDITORIAL_POLICY.relax_floor_if_empty, help="Relax the importance floor when it would leave the edition empty")
+    parser.add_argument("--relaxed-max-items", type=int, default=DEFAULT_EDITORIAL_POLICY.relaxed_max_items, help="Maximum items when the importance floor is relaxed")
     parser.add_argument("--llm-backend", choices=("local-cli", "openai-compatible"), default=os.getenv("NEWSLETTER_LLM_BACKEND", "openai-compatible"), help="LLM backend used for ranking and summaries")
     parser.add_argument("--llm-cli-command", choices=("gemini", "opencode"), default=os.getenv("NEWSLETTER_LLM_CLI_COMMAND", "opencode"), help="CLI used by the local LLM backend")
     parser.add_argument("--local-cli-model", default=os.getenv("NEWSLETTER_LOCAL_CLI_MODEL"), help="provider/model value for the local CLI backend")
@@ -81,4 +97,18 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
         smtp_ssl=args.smtp_ssl,
         test_email=args.test_email,
         send_latest=args.send_latest,
+        seen_file=args.seen_file,
+        seen_retention_days=args.seen_retention_days,
+        editorial=EditorialPolicy(
+            min_importance=args.min_importance,
+            max_items=args.limit,
+            max_per_source=args.max_per_source,
+            max_per_group=args.max_per_group,
+            reserved_topics=frozenset(
+                topic.strip().lower() for topic in args.reserved_topics.split(",") if topic.strip()
+            ),
+            reserved_slots=args.reserved_slots,
+            relax_floor_if_empty=args.relax_floor_if_empty,
+            relaxed_max_items=args.relaxed_max_items,
+        ),
     )

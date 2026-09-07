@@ -4,12 +4,14 @@ import logging
 import sys
 
 from newsletter_diaria.cache import load_draft_cache, write_draft_cache
+from newsletter_diaria.editorial import log_rejections, select_items
 from newsletter_diaria.emailing import send_newsletter_email, test_email_config
 from newsletter_diaria.ingest import cap_candidates, collect_items, dedupe, filter_recent
 from newsletter_diaria.models import AppConfig, NewsletterDraft
 from newsletter_diaria.ranking import build_newsletter
 from newsletter_diaria.renderers import render_console, write_markdown
 from newsletter_diaria.sources import load_sources, sources_by_name
+from newsletter_diaria.state import filter_unseen, load_seen, record_seen
 
 logger = logging.getLogger("newsletter_diaria")
 
@@ -37,9 +39,16 @@ def run(config: AppConfig) -> int:
     items = dedupe(items)
     logger.info("%d items remain after deduplication", len(items))
 
+    # Ventana amplia + memoria de lo ya enviado: asi una fuente que publica una
+    # vez al mes puede competir varios dias sin que nada se repita.
+    seen = load_seen(config.seen_file)
+    before_seen = len(items)
+    items = filter_unseen(items, seen)
+    logger.info("%d items remain after dropping %d already sent", len(items), before_seen - len(items))
+
     if not items:
-        logger.info("No recent news items found in the last %d hours. Skipping newsletter generation.", config.hours)
-        print("No recent news items found.")
+        logger.info("No unsent news items found in the last %d hours. Skipping newsletter generation.", config.hours)
+        print("No new news items found.")
         return 0
 
     items = cap_candidates(items, config.ai_candidates)
@@ -51,8 +60,15 @@ def run(config: AppConfig) -> int:
         print(f"(x) {exc}", file=sys.stderr)
         return 1
 
-    if config.limit > 0:
-        draft = NewsletterDraft(headline=draft.headline, items=draft.items[: config.limit], trends=draft.trends)
+    selection = select_items(
+        draft.items,
+        config.editorial,
+        source_index,
+        apply_importance_floor=not draft.heuristic_importance,
+    )
+    log_rejections(selection.rejected)
+    logger.info("Editorial policy kept %d of %d item(s)", len(selection.items), len(draft.items))
+    draft = NewsletterDraft(headline=draft.headline, items=selection.items, trends=draft.trends)
 
     if not draft.items:
         logger.info("Generated draft contains no items. Skipping email dispatch.")
@@ -69,6 +85,11 @@ def run(config: AppConfig) -> int:
         except RuntimeError as exc:
             print(f"(x) {exc}", file=sys.stderr)
             return 1
+        # Solo se anota lo entregado: si el envio falla, o esto es una prueba en
+        # seco sin --send-email, los articulos siguen disponibles manana.
+        record_seen(config.seen_file, [ranked.item for ranked in draft.items], seen, config.seen_retention_days)
+    else:
+        logger.info("Dry run without --send-email: the seen store at %s stays untouched", config.seen_file)
 
     print(f"\nSaved: {config.output}")
     return 0

@@ -48,11 +48,13 @@ def write_markdown(draft: NewsletterDraft, output: Path) -> None:
                 f"   - Date: {when}",
                 f"   - Link: {item.link}",
                 f"   - Summary: {ranked.summary or '—'}",
-                f"   - Why: {ranked.why or '—'}",
-                f"   - Takeaway: {ranked.takeaway or '—'}",
-                "",
             ]
         )
+        if ranked.why:
+            lines.append(f"   - Why: {ranked.why}")
+        if ranked.takeaway:
+            lines.append(f"   - Takeaway: {ranked.takeaway}")
+        lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -188,7 +190,7 @@ def render_email_html(draft: NewsletterDraft) -> str:
       <div class="container">
         <div class="hero">
           <h1>{esc(draft.headline or 'Resumen diario')}</h1>
-          <p>Selección de lo más relevante de las últimas 24 horas.</p>
+          <p>Selección de lo más relevante de los últimos días.</p>
         </div>
         <div class="content">
           {trend_html}

@@ -41,7 +41,7 @@ def collect_items(sources: Iterable[Source]) -> list[Item]:
     def read_source(index: int, source: Source) -> list[Item]:
         logger.info("[%d/%d] Reading %s", index, total, source.name)
         parser = resolve_parser(source)
-        return parser.parse(source)
+        return apply_url_excludes(source, parser.parse(source))
 
     with ThreadPoolExecutor(max_workers=min(MAX_FETCH_WORKERS, total)) as executor:
         futures = {executor.submit(read_source, index, source): (index, source) for index, source in enumerate(source_list, start=1)}
@@ -56,6 +56,22 @@ def collect_items(sources: Iterable[Source]) -> list[Item]:
             except Exception as exc:  # pragma: no cover - defensive per-source isolation
                 print(f"[warn] {source.name}: {exc}", file=sys.stderr)
     return items
+
+
+def apply_url_excludes(source: Source, items: list[Item]) -> list[Item]:
+    """Descarta por URL lo que una fuente publica en el mismo feed pero no
+    queremos leer (p. ej. las entradas de changelog de Vercel)."""
+    if not source.exclude_url_patterns:
+        return items
+    kept = [
+        item
+        for item in items
+        if not any(pattern in item.link.lower() for pattern in source.exclude_url_patterns)
+    ]
+    dropped = len(items) - len(kept)
+    if dropped:
+        logger.info("%s: dropped %d item(s) matching excluded URL patterns", source.name, dropped)
+    return kept
 
 
 def fetch_xml(url: str) -> bytes:
@@ -306,12 +322,18 @@ def filter_recent(items: Iterable[Item], hours: int) -> list[Item]:
 
 
 def dedupe(items: Iterable[Item]) -> list[Item]:
+    """Deduplica por enlace normalizado, no por uid: el uid incluye el nombre de
+    la fuente, asi que el mismo articulo servido por dos feeds (GitHub Blog y
+    GitHub Engineering, por ejemplo) se colaba dos veces."""
+    from newsletter_diaria.state import item_key
+
     seen: set[str] = set()
     unique: list[Item] = []
     for item in items:
-        if item.uid in seen:
+        key = item_key(item)
+        if key in seen:
             continue
-        seen.add(item.uid)
+        seen.add(key)
         unique.append(item)
     return unique
 

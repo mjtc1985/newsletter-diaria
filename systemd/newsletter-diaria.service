@@ -11,4 +11,6 @@ Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NEWSLETTER_LLM_BACKEND=openai-compatible
 Environment=NEWSLETTER_LLM_MODEL=gemini-flash-lite-latest
 TimeoutStartSec=600
-ExecStart=/usr/bin/env PYTHONPATH=src python3 -m newsletter_diaria.main --send-email --ai-mode required
+# El registro de enviados es estado operativo: vive en StateDirectory para que
+# un redespliegue o un git clean del repo no lo borre.
+ExecStart=/usr/bin/env PYTHONPATH=src python3 -m newsletter_diaria.main --send-email --ai-mode required --seen-file /var/lib/newsletter-diaria/seen.json

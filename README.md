@@ -34,7 +34,7 @@ This project is a good fit for:
 
 ## Architecture in one line
 
-`sources -> ingest -> filter/dedupe -> rank -> summarize -> render -> cache/email`
+`sources -> ingest -> filter/dedupe -> drop already sent -> rank -> summarize -> editorial policy -> render -> cache/email`
 
 ---
 
@@ -51,6 +51,8 @@ src/newsletter_diaria/
 ├── parsers/         # Per-source pluggable parsers
 ├── ranking.py       # Ranking and draft assembly
 ├── llm.py           # LLM backends (local CLI / OpenAI-compatible)
+├── editorial.py     # Selection policy: floor, quotas, reserved slots
+├── state.py         # Store of already sent articles
 ├── renderers.py     # Console, Markdown, and email rendering
 ├── emailing.py      # SMTP delivery
 └── cache.py         # Last-draft persistence
@@ -156,6 +158,12 @@ make email-test
 PYTHONPATH=src python -m newsletter_diaria.main --limit 5
 ```
 
+### Tune the editorial policy
+
+```bash
+PYTHONPATH=src python -m newsletter_diaria.main --hours 48 --min-importance 55 --max-per-group 1
+```
+
 ### Force a specific LLM backend
 
 ```bash
@@ -178,8 +186,14 @@ After a normal run, the project produces:
 
 - `output/daily.md`: Markdown version of the newsletter
 - `output/latest.json`: structured cache of the latest newsletter
+- `output/seen.json`: articles already delivered, so they are never sent twice
 
 `latest.json` is also used by `--send-latest`, so it is part of the operational flow, not just a debug artifact.
+
+`seen.json` is operational state: delete it and the next run may re-send articles
+you already received. It is only written after a successful email dispatch, so a
+run without `--send-email` never consumes candidates. On the Raspberry Pi the
+systemd unit keeps it in `/var/lib/newsletter-diaria/` so a redeploy cannot wipe it.
 
 ---
 
@@ -196,6 +210,11 @@ After a normal run, the project produces:
 - `kind`: `feed` or `html`
 - `max_items`: maximum number of articles to extract
 - `parser`: optional specific parser
+- `group`: sources owned by the same voice share a quota (`labs`, `cloud`,
+  `github`, `cncf`, `bigtech`). Empty means the source is its own group.
+- `exclude_url_patterns`: URL substrings dropped at ingest time. Used for feeds
+  that mix content with changelog noise, e.g. `["/changelog/"]` on Vercel, which
+  is about 90% of that feed's volume.
 
 ### Example
 
@@ -221,6 +240,42 @@ If `parser` is not set, the system falls back to the default parser for that `ki
 ### Recommended source already included
 
 The project already includes `GitHub Changelog`, which is especially useful for catching product, pricing, and deprecation changes such as GitHub Copilot updates.
+
+---
+
+## Editorial policy
+
+Feeds do not publish at comparable rates: a vendor changelog posts several times a
+day while an independent writer posts monthly. Ranking alone therefore hands the
+edition to whoever publishes most. Two mechanisms keep that in check.
+
+**Wide window plus memory.** The window is 72h (`--hours`) and every delivered
+article is recorded in `seen.json`, so a source that publishes once a month can
+compete for three days without anything being repeated. Deduplication uses the
+normalized link, not the item uid, so the same article served by two feeds of the
+same site counts once.
+
+**Selection after summarizing** (`editorial.py`), in this order:
+
+1. Articles the summarizer marked as noise are dropped.
+2. Articles below `--min-importance` (default 40) are dropped.
+3. `--max-per-source` (default 1) and `--max-per-group` (default 2) are applied.
+4. `--reserved-slots` (default 3) of the edition are held for `--reserved-topics`
+   (default `opinion,research,security`) so vendor announcements cannot take the
+   whole issue. Unused reserved slots are backfilled.
+5. The edition is capped at `--limit` (default 10) and ranks are renumbered.
+
+Every rejection is logged with its reason, so `journalctl -u newsletter-diaria`
+shows what was left out and why.
+
+The floor is skipped entirely when the run falls back to heuristic ranking
+(`--ai-mode off`, or an LLM failure): those importances are a different scale and
+comparing them to the threshold would drop almost everything. Quotas and reserved
+slots still apply.
+
+If the importance floor would leave the edition empty, it is relaxed for up to
+`--relaxed-max-items` articles (`--no-relax-floor-if-empty` to disable). Explicit
+discards and quotas still apply: only the numeric threshold gives way.
 
 ---
 

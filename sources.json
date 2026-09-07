@@ -4,25 +4,29 @@
       "name": "GitHub Blog",
       "url": "https://github.blog/feed/",
       "topic": "software",
-      "priority": "high"
+      "priority": "high",
+      "group": "github"
     },
     {
       "name": "GitHub Engineering",
       "url": "https://github.blog/category/engineering/feed/",
       "topic": "software",
-      "priority": "high"
+      "priority": "high",
+      "group": "github"
     },
     {
       "name": "GitHub Changelog",
       "url": "https://github.blog/changelog/feed/",
       "topic": "software",
-      "priority": "high"
+      "priority": "high",
+      "group": "github"
     },
     {
       "name": "OpenAI Blog",
       "url": "https://openai.com/blog/rss.xml",
       "topic": "ai",
-      "priority": "high"
+      "priority": "high",
+      "group": "labs"
     },
     {
       "name": "Anthropic Blog",
@@ -31,25 +35,32 @@
       "priority": "high",
       "kind": "html",
       "max_items": 5,
-      "parser": "anthropic"
+      "parser": "anthropic",
+      "group": "labs"
     },
     {
       "name": "Google AI Blog",
       "url": "https://blog.google/technology/ai/rss/",
       "topic": "ai",
-      "priority": "high"
+      "priority": "high",
+      "group": "labs"
     },
     {
       "name": "Hugging Face Blog",
       "url": "https://huggingface.co/blog/feed.xml",
       "topic": "ai",
-      "priority": "high"
+      "priority": "high",
+      "group": "labs"
     },
     {
       "name": "Vercel Blog",
       "url": "https://vercel.com/blog/feed",
       "topic": "software",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "cloud",
+      "exclude_url_patterns": [
+        "/changelog/"
+      ]
     },
     {
       "name": "The Gradient",
@@ -67,37 +78,43 @@
       "name": "Cloudflare Blog",
       "url": "https://blog.cloudflare.com/rss/",
       "topic": "infra",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "cloud"
     },
     {
       "name": "AWS Architecture",
       "url": "https://aws.amazon.com/blogs/architecture/feed/",
       "topic": "infra",
-      "priority": "high"
+      "priority": "high",
+      "group": "cloud"
     },
     {
       "name": "Kubernetes Blog",
       "url": "https://kubernetes.io/feed.xml",
       "topic": "infra",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "cncf"
     },
     {
       "name": "CNCF Blog",
       "url": "https://www.cncf.io/blog/feed/",
       "topic": "infra",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "cncf"
     },
     {
       "name": "HashiCorp Blog",
       "url": "https://www.hashicorp.com/blog/feed.xml",
       "topic": "infra",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "cloud"
     },
     {
       "name": "Microsoft DevBlogs",
       "url": "https://devblogs.microsoft.com/feed/",
       "topic": "software",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "bigtech"
     },
     {
       "name": "Y Combinator Blog",
@@ -133,19 +150,22 @@
       "name": "Netflix TechBlog",
       "url": "https://netflixtechblog.com/feed",
       "topic": "software",
-      "priority": "high"
+      "priority": "high",
+      "group": "bigtech"
     },
     {
       "name": "Slack Engineering",
       "url": "https://slack.engineering/feed/",
       "topic": "software",
-      "priority": "high"
+      "priority": "high",
+      "group": "bigtech"
     },
     {
       "name": "Facebook Engineering",
       "url": "https://engineering.fb.com/feed/",
       "topic": "software",
-      "priority": "high"
+      "priority": "high",
+      "group": "bigtech"
     },
     {
       "name": "Charity.wtf",
@@ -157,7 +177,8 @@
       "name": "Google DeepMind",
       "url": "https://deepmind.google/blog/rss.xml",
       "topic": "ai",
-      "priority": "high"
+      "priority": "high",
+      "group": "labs"
     },
     {
       "name": "Google Security Blog",

@@ -59,13 +59,32 @@ def load_sources(path: Path) -> list[Source]:
         kind = str(raw.get("kind", "feed")).strip().lower() or "feed"
         max_items = int(raw.get("max_items", 5) or 5)
         parser = str(raw.get("parser", "")).strip() or None
+        group = str(raw.get("group", "")).strip()
+        raw_excludes = raw.get("exclude_url_patterns", [])
+        exclude_url_patterns = tuple(
+            str(pattern).strip().lower()
+            for pattern in (raw_excludes if isinstance(raw_excludes, list) else [])
+            if str(pattern).strip()
+        )
         if not name or not url:
             continue
         if priority not in PRIORITY_WEIGHTS:
             priority = "medium"
         if kind not in {"feed", "html"}:
             kind = "feed"
-        sources.append(Source(name=name, url=url, topic=topic, priority=priority, kind=kind, max_items=max_items, parser=parser))
+        sources.append(
+            Source(
+                name=name,
+                url=url,
+                topic=topic,
+                priority=priority,
+                kind=kind,
+                max_items=max_items,
+                parser=parser,
+                group=group,
+                exclude_url_patterns=exclude_url_patterns,
+            )
+        )
 
     return sources or DEFAULT_SOURCES
 
