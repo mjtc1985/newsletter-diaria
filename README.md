@@ -255,6 +255,13 @@ compete for three days without anything being repeated. Deduplication uses the
 normalized link, not the item uid, so the same article served by two feeds of the
 same site counts once.
 
+**Ranking criteria.** The ranker is asked a single question — does this change
+what someone will do tomorrow? — and told to give importance 20 or less to
+changelog entries, "now available on X" notes, customer stories, funding rounds
+and promotional material. Combined with the importance floor below, that is what
+actually removes vendor noise from the edition. Distribution across sources is
+not asked of the model: the quotas below enforce it.
+
 **Selection after summarizing** (`editorial.py`), in this order:
 
 1. Articles the summarizer marked as noise are dropped.

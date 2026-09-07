@@ -114,3 +114,72 @@ class OpenAICompatibleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PromptBuilderTest(unittest.TestCase):
+    """Los prompts estaban duplicados en los dos backends y divergieron. Estos
+    tests fijan que ambos usan el mismo constructor."""
+
+    def _item(self):
+        from datetime import datetime, timezone
+
+        from newsletter_diaria.models import Item
+
+        return Item(
+            uid="u1",
+            source="Vercel Blog",
+            title="GPT-6 now available on AI Gateway",
+            link="https://vercel.com/changelog/x",
+            published_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+            summary="Changelog entry",
+        )
+
+    def test_ranking_prompt_carries_the_negative_criteria_and_all_uids(self) -> None:
+        from newsletter_diaria.llm import build_ranking_prompt
+
+        prompt = build_ranking_prompt({"items": [{"uid": "u1"}, {"uid": "u2"}]})
+        self.assertIn("importance 20 o menos", prompt)
+        self.assertIn("entradas de changelog", prompt)
+        self.assertIn("TODOS los uid exactamente una vez", prompt)
+        self.assertIn('"u1"', prompt)
+        self.assertIn('"u2"', prompt)
+        # El reparto entre fuentes lo imponen las cuotas, no el prompt.
+        self.assertNotIn("reparte mejor entre fuentes", prompt)
+
+    def test_summary_prompt_allows_discarding(self) -> None:
+        from newsletter_diaria.llm import build_summary_batch_prompt
+
+        prompt = build_summary_batch_prompt({"items": []})
+        self.assertIn("descartar", prompt)
+        self.assertIn("motivo_descarte", prompt)
+        self.assertIn("cadena vacía", prompt)
+
+    def test_both_backends_share_the_ranking_prompt(self) -> None:
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from newsletter_diaria.llm import (
+            OpenAICompatibleProvider,
+            OpenCodeProvider,
+            build_ranking_prompt,
+        )
+        from newsletter_diaria.models import OpenAICompatibleConfig, OpenCodeConfig
+
+        items = [self._item()]
+        expected_marker = "Criterio único"
+
+        http = OpenAICompatibleProvider(
+            OpenAICompatibleConfig(base_url="https://x", api_key="k", api_key_env="K", model="m", json_mode=True)
+        )
+        with patch.object(http, "_chat_json", return_value={}) as chat:
+            http.rank(items)
+        self.assertIn(expected_marker, chat.call_args[0][0])
+
+        cli = OpenCodeProvider(
+            OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd())
+        )
+        with patch.object(cli, "_run_json", return_value={}) as run_json:
+            cli.rank(items)
+        self.assertIn(expected_marker, run_json.call_args.kwargs["prompt"])
+
+        self.assertIn(expected_marker, build_ranking_prompt({"items": []}))

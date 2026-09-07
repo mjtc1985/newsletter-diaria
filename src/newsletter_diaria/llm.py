@@ -28,6 +28,41 @@ FALLBACK_MODELS = [
 ]
 
 
+# Criterio del ranker. La versión anterior enumeraba "major releases, major AI
+# model/tool launches": una instrucción de premiar anuncios, que subía el
+# marketing que el summarizer tiene que descartar después. El reparto entre
+# fuentes ya no se le pide al modelo, lo imponen las cuotas de editorial.py.
+RANKING_RULES = (
+    "Ordena estas noticias por importancia real, no por lo prometedor del titular.\n"
+    "Criterio único: ¿cambia lo que alguien va a hacer mañana, si desarrolla software,\n"
+    "opera infraestructura o trabaja con IA?\n"
+    "Sube: análisis técnico que explica cómo funciona algo, post mortems e informes de\n"
+    "incidentes, investigación con resultados, vulnerabilidades que obligan a actuar,\n"
+    "cambios que rompen compatibilidad o deprecaciones con fecha, y lanzamientos que\n"
+    "cambian de verdad cómo se construye algo.\n"
+    "Baja a importance 20 o menos: entradas de changelog, notas del tipo 'ya disponible\n"
+    "en X', casos de cliente y testimonios, rondas de financiación, contrataciones,\n"
+    "eventos y material promocional sin contenido técnico.\n"
+    "Un titular aburrido puede ser el artículo más importante del día, y un titular\n"
+    "espectacular puede ser una nota de prensa: juzga el contenido, no el envoltorio.\n"
+    "Que una noticia venga de una empresa grande no la hace importante.\n"
+    "Los campos rank e importance son enteros; rank empieza en 1 y nunca es 0.\n"
+    "importance va de 1 a 100.\n"
+    "Devuelve TODOS los uid exactamente una vez; no omitas ninguno.\n"
+    "Usa solo los campos dados; no inventes información que no esté ahí.\n"
+)
+
+
+def build_ranking_prompt(payload: dict) -> str:
+    return (
+        "Responde en español y SOLO con JSON válido.\n"
+        + RANKING_RULES
+        + "Devuelve exactamente: {\"headline\":string,\"trends\":[string],"
+        "\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}.\n"
+        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+    )
+
+
 # Reglas del summarizer. La clave es que el modelo pueda decir "esto es ruido"
 # en lugar de verse obligado a fabricar relevancia: si 'why' y 'takeaway' son
 # obligatorios, el modelo los inventa para una entrada de changelog.
@@ -101,17 +136,7 @@ class OpenCodeProvider:
                 for item in items
             ]
         }
-        prompt = (
-            "Responde en español y SOLO con JSON válido. "
-            "Ordena estas noticias por importancia real. "
-            "Los campos rank e importance deben ser enteros; rank empieza en 1 y nunca es 0. "
-            "importance va de 1 a 100. "
-            "Devuelve TODOS los uid exactamente una vez; no omitas ninguno. "
-            "Si dos noticias tienen importancia similar, reparte mejor entre fuentes, pero sin forzar cuotas. "
-            "Usa solo los campos dados. "
-            "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
-            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
-        )
+        prompt = build_ranking_prompt(payload)
         logger.info("Ranking prompt length: %d characters", len(prompt))
         logger.info("Calling %s to rank %d items", self._cli_label(), len(items))
         return self._run_json(agent=self.config.ranker_agent, prompt=prompt)
@@ -208,17 +233,7 @@ class OpenAICompatibleProvider:
                 for item in items
             ]
         }
-        prompt = (
-            "Responde en español y SOLO con JSON válido. "
-            "Ordena estas noticias por importancia real. "
-            "Los campos rank e importance deben ser enteros; rank empieza en 1 y nunca es 0. "
-            "importance va de 1 a 100. "
-            "Devuelve TODOS los uid exactamente una vez; no omitas ninguno. "
-            "Si dos noticias tienen importancia similar, reparte mejor entre fuentes, pero sin forzar cuotas. "
-            "Usa solo los campos dados. "
-            "Devuelve exactamente {\"headline\":string,\"trends\":[string],\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}. "
-            f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
-        )
+        prompt = build_ranking_prompt(payload)
         logger.info("Calling OpenAI-compatible backend to rank %d items", len(items))
         return self._chat_json(prompt)
 
