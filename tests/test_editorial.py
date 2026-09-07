@@ -11,6 +11,7 @@ POLICY = EditorialPolicy(
     max_items=10,
     max_per_source=1,
     max_per_group=2,
+    group_limits=(),
     reserved_topics=frozenset({"opinion", "research", "security"}),
     reserved_slots=3,
     relax_floor_if_empty=True,
@@ -98,7 +99,7 @@ class EditorialPolicyTest(unittest.TestCase):
             SOURCES,
         )
         self.assertEqual(names(result), ["OpenAI Blog", "Anthropic Blog", "Dan Luu"])
-        self.assertTrue(any("cuota de grupo agotada (labs)" in reason for _, reason in result.rejected))
+        self.assertTrue(any("cuota de grupo agotada (labs" in reason for _, reason in result.rejected))
 
     def test_reserved_slots_survive_a_flood_of_vendor_items(self) -> None:
         policy = EditorialPolicy(
@@ -106,6 +107,7 @@ class EditorialPolicyTest(unittest.TestCase):
             max_items=4,
             max_per_source=1,
             max_per_group=4,
+            group_limits=(),
             reserved_topics=frozenset({"opinion", "security"}),
             reserved_slots=2,
             relax_floor_if_empty=True,
@@ -130,6 +132,7 @@ class EditorialPolicyTest(unittest.TestCase):
             max_items=3,
             max_per_source=1,
             max_per_group=3,
+            group_limits=(),
             reserved_topics=frozenset({"opinion", "security"}),
             reserved_slots=2,
             relax_floor_if_empty=True,
@@ -176,6 +179,25 @@ class EditorialPolicyTest(unittest.TestCase):
         )
         self.assertEqual([item.rank for item in result.items], [1, 2])
 
+    def test_per_group_override_beats_the_global_cap(self) -> None:
+        from dataclasses import replace as dc_replace
+
+        policy = dc_replace(POLICY, group_limits=(("labs", 3),))
+        candidates = [
+            ranked("OpenAI Blog", 1),
+            ranked("Anthropic Blog", 2),
+            ranked("Google DeepMind", 3),
+            ranked("Vercel Blog", 4),
+            ranked("Cloudflare Blog", 5),
+        ]
+        result = select_items(candidates, policy, SOURCES)
+        kept = names(result)
+        labs = {"OpenAI Blog", "Anthropic Blog", "Google DeepMind"}
+        # labs sube a 3; cloud sigue en el tope global de 2
+        self.assertEqual(len([name for name in kept if name in labs]), 3)
+        self.assertEqual(len([name for name in kept if name not in labs]), 2)
+        self.assertEqual(result.rejected, [])
+
     def test_unknown_source_is_its_own_group(self) -> None:
         result = select_items([ranked("Mystery Feed", 1), ranked("Dan Luu", 2)], POLICY, SOURCES)
         self.assertEqual(len(result.items), 2)
@@ -204,4 +226,4 @@ class HeuristicImportanceTest(unittest.TestCase):
         ]
         result = select_items(candidates, POLICY, SOURCES, apply_importance_floor=False)
         self.assertEqual(len(result.items), 2)
-        self.assertIn("cuota de grupo agotada (labs)", result.rejected[0][1])
+        self.assertIn("cuota de grupo agotada (labs", result.rejected[0][1])

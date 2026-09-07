@@ -28,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-importance", type=int, default=DEFAULT_EDITORIAL_POLICY.min_importance, help="Drop items ranked below this importance")
     parser.add_argument("--max-per-source", type=int, default=DEFAULT_EDITORIAL_POLICY.max_per_source, help="Maximum items per source in one edition (0 = unlimited)")
     parser.add_argument("--max-per-group", type=int, default=DEFAULT_EDITORIAL_POLICY.max_per_group, help="Maximum items per source group in one edition (0 = unlimited)")
+    parser.add_argument("--max-per-group-override", action="append", default=None, metavar="GROUP=N", help="Per-group override of --max-per-group, repeatable (e.g. labs=5)")
     parser.add_argument("--reserved-topics", default=",".join(sorted(DEFAULT_EDITORIAL_POLICY.reserved_topics)), help="Comma-separated topics that get reserved slots")
     parser.add_argument("--reserved-slots", type=int, default=DEFAULT_EDITORIAL_POLICY.reserved_slots, help="Slots held for the reserved topics")
     parser.add_argument("--relax-floor-if-empty", action=argparse.BooleanOptionalAction, default=DEFAULT_EDITORIAL_POLICY.relax_floor_if_empty, help="Relax the importance floor when it would leave the edition empty")
@@ -54,6 +55,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--test-email", action="store_true", help="Test SMTP config without sending the newsletter")
     parser.add_argument("--send-latest", action="store_true", help="Send the latest cached newsletter without re-reading feeds")
     return parser
+
+
+def parse_group_limits(raw: list[str] | None) -> tuple[tuple[str, int], ...]:
+    """Sin --max-per-group-override se mantienen las excepciones por defecto."""
+    if raw is None:
+        return DEFAULT_EDITORIAL_POLICY.group_limits
+    limits: dict[str, int] = {}
+    for entry in raw:
+        group, _, value = entry.partition("=")
+        group = group.strip()
+        if not group or not value.strip().lstrip("-").isdigit():
+            raise SystemExit(f"Invalid --max-per-group-override value: {entry!r} (expected GROUP=N)")
+        limits[group] = int(value)
+    return tuple(sorted(limits.items()))
 
 
 def parse_args(argv: list[str] | None = None) -> AppConfig:
@@ -104,6 +119,7 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
             max_items=args.limit,
             max_per_source=args.max_per_source,
             max_per_group=args.max_per_group,
+            group_limits=parse_group_limits(args.max_per_group_override),
             reserved_topics=frozenset(
                 topic.strip().lower() for topic in args.reserved_topics.split(",") if topic.strip()
             ),

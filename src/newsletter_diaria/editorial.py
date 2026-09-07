@@ -88,6 +88,7 @@ def apply_quotas(
     rejected: list[tuple[RankedItem, str]] = []
     per_source: Counter[str] = Counter()
     per_group: Counter[str] = Counter()
+    group_limits = dict(policy.group_limits)
     general_cap = max(0, max_items - policy.reserved_slots)
     general_used = 0
     deferred: list[RankedItem] = []
@@ -101,8 +102,9 @@ def apply_quotas(
         group = group_of(ranked, sources_by_name)
         if 0 < policy.max_per_source <= per_source[source_name]:
             return f"cuota de fuente agotada ({source_name})"
-        if 0 < policy.max_per_group <= per_group[group]:
-            return f"cuota de grupo agotada ({group})"
+        group_cap = group_limits.get(group, policy.max_per_group)
+        if 0 < group_cap <= per_group[group]:
+            return f"cuota de grupo agotada ({group}, tope {group_cap})"
         reserved = topic_of(ranked, sources_by_name) in policy.reserved_topics
         if honour_reserve and not reserved and general_used >= general_cap:
             return DEFERRED

@@ -89,6 +89,9 @@ class EditorialPolicy:
     max_items: int
     max_per_source: int
     max_per_group: int
+    # Excepciones al tope por grupo, como pares (grupo, tope). Un dict no vale
+    # como default de un dataclass frozen, y asi el orden queda estable.
+    group_limits: tuple[tuple[str, int], ...]
     reserved_topics: frozenset[str]
     reserved_slots: int
     relax_floor_if_empty: bool
@@ -102,6 +105,10 @@ DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
     max_items=10,
     max_per_source=1,
     max_per_group=2,
+    # labs a 5 por decision explicita: se probo subirlo para ver si el rubro de
+    # puntuacion aguanta la carga sin necesidad del tope. Volver a 2 si el
+    # boletin se llena de anuncios de modelos.
+    group_limits=(("labs", 5),),
     reserved_topics=DEFAULT_RESERVED_TOPICS,
     reserved_slots=3,
     relax_floor_if_empty=True,
