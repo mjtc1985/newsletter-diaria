@@ -107,10 +107,9 @@ DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
     max_items=10,
     max_per_source=1,
     max_per_group=2,
-    # labs a 5 por decision explicita: se probo subirlo para ver si el rubro de
-    # puntuacion aguanta la carga sin necesidad del tope. Volver a 2 si el
-    # boletin se llena de anuncios de modelos.
-    group_limits=(("labs", 5),),
+    # labs a 5 por decision explicita. press a 1: The Register y compania traen
+    # 24 articulos en 72h mezclando IA con gadgets, y diluirian la edicion.
+    group_limits=(("labs", 5), ("press", 1)),
     reserved_topics=DEFAULT_RESERVED_TOPICS,
     reserved_slots=3,
     relax_floor_if_empty=True,

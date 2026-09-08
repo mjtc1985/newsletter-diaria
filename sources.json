@@ -174,18 +174,6 @@
       "priority": "medium"
     },
     {
-      "name": "Rust Blog",
-      "url": "https://blog.rust-lang.org/feed.xml",
-      "topic": "software",
-      "priority": "medium"
-    },
-    {
-      "name": "Go Blog",
-      "url": "https://go.dev/blog/feed.atom",
-      "topic": "software",
-      "priority": "medium"
-    },
-    {
       "name": "Julia Evans",
       "url": "https://jvns.ca/atom.xml",
       "topic": "software",
@@ -213,13 +201,15 @@
       "name": "The Register",
       "url": "https://www.theregister.com/headlines.atom",
       "topic": "press",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "press"
     },
     {
       "name": "Ars Technica",
       "url": "https://feeds.arstechnica.com/arstechnica/technology-lab",
       "topic": "press",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "press"
     },
     {
       "name": "InfoQ",
@@ -231,25 +221,8 @@
       "name": "IEEE Spectrum",
       "url": "https://spectrum.ieee.org/feeds/topic/computing.rss",
       "topic": "press",
-      "priority": "medium"
-    },
-    {
-      "name": "Krebs on Security",
-      "url": "https://krebsonsecurity.com/feed/",
-      "topic": "security",
-      "priority": "high"
-    },
-    {
-      "name": "oss-security",
-      "url": "https://seclists.org/rss/oss-sec.rss",
-      "topic": "security",
-      "priority": "high"
-    },
-    {
-      "name": "Schneier on Security",
-      "url": "https://www.schneier.com/feed/atom/",
-      "topic": "security",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "press"
     },
     {
       "name": "GitHub Security",
@@ -289,27 +262,21 @@
       "priority": "high"
     },
     {
-      "name": "Real Python",
-      "url": "https://realpython.com/atom.xml",
-      "topic": "software",
-      "priority": "medium"
-    },
-    {
-      "name": "Django",
-      "url": "https://www.djangoproject.com/rss/weblog/",
-      "topic": "software",
-      "priority": "medium"
-    },
-    {
-      "name": "PostgreSQL",
-      "url": "https://www.postgresql.org/news.rss",
-      "topic": "software",
-      "priority": "medium"
-    },
-    {
       "name": "arXiv cs.SE",
       "url": "http://export.arxiv.org/rss/cs.SE",
       "topic": "research",
+      "priority": "medium"
+    },
+    {
+      "name": "Trail of Bits",
+      "url": "https://blog.trailofbits.com/feed/",
+      "topic": "security",
+      "priority": "high"
+    },
+    {
+      "name": "OpenSSF",
+      "url": "https://openssf.org/feed/",
+      "topic": "security",
       "priority": "medium"
     }
   ]
