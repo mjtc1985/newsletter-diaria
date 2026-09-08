@@ -249,6 +249,13 @@ Feeds do not publish at comparable rates: a vendor changelog posts several times
 day while an independent writer posts monthly. Ranking alone therefore hands the
 edition to whoever publishes most. Two mechanisms keep that in check.
 
+**Fair intake.** Only `--ai-candidates` items reach the model. Taking the newest
+ones hands the quota to whoever publishes most: measured on a real window, an
+aggregator took 15 of 30 slots and seven sources never reached the model at all.
+Editorial quotas run after the ranking, so they cannot recover anything cut at
+that point. The cap therefore takes the newest items per source in rounds, so
+every source with something to say is represented.
+
 **Wide window plus memory.** The window is 72h (`--hours`) and every delivered
 article is recorded in `seen.json`, so a source that publishes once a month can
 compete for three days without anything being repeated. Deduplication uses the
@@ -265,7 +272,9 @@ not asked of the model: the quotas below enforce it.
 **Selection after summarizing** (`editorial.py`), in this order:
 
 1. Articles the summarizer marked as noise are dropped.
-2. Articles below `--min-importance` (default 40) are dropped.
+2. Articles below `--min-importance` (default 40) are dropped, and so are those
+   whose "why it matters" came back empty (`--no-require-why` to allow them). If
+   the model cannot say why an article matters, it does not ship.
 3. `--max-per-source` (default 1) and `--max-per-group` (default 2) are applied.
 4. `--reserved-slots` (default 3) of the edition are held for `--reserved-topics`
    (default `opinion,research,security`) so vendor announcements cannot take the
@@ -280,7 +289,8 @@ The floor is skipped entirely when the run falls back to heuristic ranking
 comparing them to the threshold would drop almost everything. Quotas and reserved
 slots still apply.
 
-If the importance floor would leave the edition empty, it is relaxed for up to
+If the importance floor and the `why` requirement would leave the edition empty,
+both are relaxed for up to
 `--relaxed-max-items` articles (`--no-relax-floor-if-empty` to disable). Explicit
 discards and quotas still apply: only the numeric threshold gives way.
 

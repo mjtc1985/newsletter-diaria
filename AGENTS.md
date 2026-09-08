@@ -30,6 +30,12 @@ PYTHONPATH=src python -m newsletter_diaria.main
   que publica una vez al mes compite varios dias sin repetirse.
 - El dedupe usa el enlace normalizado, no el uid (el uid incluye el nombre de la
   fuente, asi que el mismo articulo en dos feeds se colaba dos veces).
+- `cap_candidates` reparte los huecos previos al modelo por fuente, en rondas.
+  Recortar por recencia le daba el cupo a quien publica mas y dejaba fuentes sin
+  llegar nunca al modelo; las cuotas editoriales son posteriores al ranking y no
+  pueden recuperar nada de lo que se cae ahi.
+- Un articulo sin `why` no se envia: si la IA no supo decir por que importa, no
+  entra. Misma red de seguridad que el umbral.
 - Tras resumir, `editorial.py` aplica: descartes de la IA, umbral de importancia,
   cuota por fuente y por grupo, huecos reservados para opinion/research/security
   y limite duro de la edicion. Cada rechazo se registra con su motivo.
