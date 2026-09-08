@@ -339,7 +339,42 @@ def dedupe(items: Iterable[Item]) -> list[Item]:
 
 
 def cap_candidates(items: list[Item], limit: int) -> list[Item]:
-    if len(items) <= limit:
+    """Reparte los huecos por fuente en vez de quedarse con los mas recientes.
+
+    Recortar por recencia entrega el cupo a quien publica mas: con 98
+    candidatos y un limite de 30, un agregador se llevaba 15 huecos y siete
+    fuentes no llegaban nunca al modelo. Las cuotas editoriales actuan despues
+    del ranking, asi que no pueden recuperar lo que se cae aqui."""
+    if limit <= 0 or len(items) <= limit:
         return items
+
     minimum_date = datetime.min.replace(tzinfo=timezone.utc)
-    return sorted(items, key=lambda item: item.published_at or minimum_date, reverse=True)[:limit]
+
+    def moment(item: Item) -> datetime:
+        return item.published_at or minimum_date
+
+    by_source: dict[str, list[Item]] = {}
+    for item in sorted(items, key=moment, reverse=True):
+        by_source.setdefault(item.source, []).append(item)
+
+    # Las fuentes con la novedad mas fresca van primero, para que en la ultima
+    # ronda incompleta entren esas y no las de la cola del alfabeto.
+    order = sorted(by_source, key=lambda name: moment(by_source[name][0]), reverse=True)
+
+    selected: list[Item] = []
+    depth = 0
+    while len(selected) < limit:
+        added = False
+        for name in order:
+            bucket = by_source[name]
+            if depth >= len(bucket):
+                continue
+            selected.append(bucket[depth])
+            added = True
+            if len(selected) >= limit:
+                break
+        if not added:
+            break
+        depth += 1
+
+    return sorted(selected, key=moment, reverse=True)

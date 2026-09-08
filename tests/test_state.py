@@ -87,3 +87,46 @@ class SeenStoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CapCandidatesTest(unittest.TestCase):
+    def _pool(self) -> list[Item]:
+        from datetime import timedelta
+
+        now = datetime.now(timezone.utc)
+        items: list[Item] = []
+        # Un agregador ruidoso y cuatro fuentes lentas.
+        for n in range(20):
+            items.append(Item(uid=f"agg{n}", source="Aggregator", title=f"a{n}",
+                              link=f"https://agg.dev/{n}", published_at=now - timedelta(minutes=n), summary="s"))
+        for name in ("Slow A", "Slow B", "Slow C", "Slow D"):
+            items.append(Item(uid=name, source=name, title=name, link=f"https://{name}.dev/1",
+                              published_at=now - timedelta(hours=30), summary="s"))
+        return items
+
+    def test_shares_slots_across_sources(self) -> None:
+        from collections import Counter
+
+        from newsletter_diaria.ingest import cap_candidates
+
+        capped = cap_candidates(self._pool(), 8)
+        counts = Counter(item.source for item in capped)
+        self.assertEqual(len(capped), 8)
+        # Antes el agregador se llevaba los 8 huecos y las lentas no llegaban.
+        self.assertEqual(counts["Aggregator"], 4)
+        for name in ("Slow A", "Slow B", "Slow C", "Slow D"):
+            self.assertEqual(counts[name], 1, name)
+
+    def test_returns_everything_when_under_the_limit(self) -> None:
+        from newsletter_diaria.ingest import cap_candidates
+
+        pool = self._pool()
+        self.assertEqual(len(cap_candidates(pool, 999)), len(pool))
+        self.assertEqual(len(cap_candidates(pool, 0)), len(pool))
+
+    def test_result_stays_ordered_by_recency(self) -> None:
+        from newsletter_diaria.ingest import cap_candidates
+
+        capped = cap_candidates(self._pool(), 8)
+        stamps = [item.published_at for item in capped]
+        self.assertEqual(stamps, sorted(stamps, reverse=True))

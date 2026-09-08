@@ -15,13 +15,6 @@
       "group": "github"
     },
     {
-      "name": "GitHub Changelog",
-      "url": "https://github.blog/changelog/feed/",
-      "topic": "software",
-      "priority": "high",
-      "group": "github"
-    },
-    {
       "name": "OpenAI Blog",
       "url": "https://openai.com/blog/rss.xml",
       "topic": "ai",
@@ -61,12 +54,6 @@
       "exclude_url_patterns": [
         "/changelog/"
       ]
-    },
-    {
-      "name": "The Gradient",
-      "url": "https://thegradient.pub/rss/",
-      "topic": "ai",
-      "priority": "medium"
     },
     {
       "name": "ByteByteGo",
@@ -181,12 +168,6 @@
       "group": "labs"
     },
     {
-      "name": "Google Security Blog",
-      "url": "https://security.googleblog.com/feeds/posts/default",
-      "topic": "security",
-      "priority": "high"
-    },
-    {
       "name": "Sebastian Raschka",
       "url": "https://magazine.sebastianraschka.com/feed",
       "topic": "ai",
@@ -209,6 +190,127 @@
       "url": "https://jvns.ca/atom.xml",
       "topic": "software",
       "priority": "high"
+    },
+    {
+      "name": "Hacker News",
+      "url": "https://hnrss.org/frontpage?points=200",
+      "topic": "aggregator",
+      "priority": "high"
+    },
+    {
+      "name": "Lobsters",
+      "url": "https://lobste.rs/rss",
+      "topic": "aggregator",
+      "priority": "medium"
+    },
+    {
+      "name": "LWN.net",
+      "url": "https://lwn.net/headlines/newrss",
+      "topic": "software",
+      "priority": "high"
+    },
+    {
+      "name": "The Register",
+      "url": "https://www.theregister.com/headlines.atom",
+      "topic": "press",
+      "priority": "medium"
+    },
+    {
+      "name": "Ars Technica",
+      "url": "https://feeds.arstechnica.com/arstechnica/technology-lab",
+      "topic": "press",
+      "priority": "medium"
+    },
+    {
+      "name": "InfoQ",
+      "url": "https://feed.infoq.com/",
+      "topic": "software",
+      "priority": "medium"
+    },
+    {
+      "name": "IEEE Spectrum",
+      "url": "https://spectrum.ieee.org/feeds/topic/computing.rss",
+      "topic": "press",
+      "priority": "medium"
+    },
+    {
+      "name": "Krebs on Security",
+      "url": "https://krebsonsecurity.com/feed/",
+      "topic": "security",
+      "priority": "high"
+    },
+    {
+      "name": "oss-security",
+      "url": "https://seclists.org/rss/oss-sec.rss",
+      "topic": "security",
+      "priority": "high"
+    },
+    {
+      "name": "Schneier on Security",
+      "url": "https://www.schneier.com/feed/atom/",
+      "topic": "security",
+      "priority": "medium"
+    },
+    {
+      "name": "GitHub Security",
+      "url": "https://github.blog/category/security/feed/",
+      "topic": "security",
+      "priority": "high",
+      "group": "github"
+    },
+    {
+      "name": "Ed Zitron",
+      "url": "https://www.wheresyoured.at/rss/",
+      "topic": "opinion",
+      "priority": "medium"
+    },
+    {
+      "name": "Molly White",
+      "url": "https://www.citationneeded.news/rss/",
+      "topic": "opinion",
+      "priority": "medium"
+    },
+    {
+      "name": "Baldur Bjarnason",
+      "url": "https://www.baldurbjarnason.com/feed.xml",
+      "topic": "opinion",
+      "priority": "medium"
+    },
+    {
+      "name": "Import AI",
+      "url": "https://jack-clark.net/feed/",
+      "topic": "ai",
+      "priority": "high"
+    },
+    {
+      "name": "Interconnects",
+      "url": "https://www.interconnects.ai/feed",
+      "topic": "ai",
+      "priority": "high"
+    },
+    {
+      "name": "Real Python",
+      "url": "https://realpython.com/atom.xml",
+      "topic": "software",
+      "priority": "medium"
+    },
+    {
+      "name": "Django",
+      "url": "https://www.djangoproject.com/rss/weblog/",
+      "topic": "software",
+      "priority": "medium"
+    },
+    {
+      "name": "PostgreSQL",
+      "url": "https://www.postgresql.org/news.rss",
+      "topic": "software",
+      "priority": "medium"
+    },
+    {
+      "name": "arXiv cs.SE",
+      "url": "http://export.arxiv.org/rss/cs.SE",
+      "topic": "research",
+      "priority": "medium"
     }
   ]
 }

@@ -96,6 +96,8 @@ class EditorialPolicy:
     reserved_slots: int
     relax_floor_if_empty: bool
     relaxed_max_items: int
+    # Si la IA no supo decir por que importa un articulo, no entra.
+    require_why: bool
 
 
 DEFAULT_RESERVED_TOPICS = frozenset({"opinion", "research", "security"})
@@ -113,6 +115,7 @@ DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
     reserved_slots=3,
     relax_floor_if_empty=True,
     relaxed_max_items=3,
+    require_why=True,
 )
 
 

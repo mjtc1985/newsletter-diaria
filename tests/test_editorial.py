@@ -16,6 +16,7 @@ POLICY = EditorialPolicy(
     reserved_slots=3,
     relax_floor_if_empty=True,
     relaxed_max_items=3,
+    require_why=True,
 )
 
 SOURCES = {
@@ -33,7 +34,8 @@ SOURCES = {
 }
 
 
-def ranked(source: str, rank: int, importance: int = 80, *, discarded: bool = False, uid: str | None = None) -> RankedItem:
+def ranked(source: str, rank: int, importance: int = 80, *, discarded: bool = False,
+           uid: str | None = None, why: str = "porque importa") -> RankedItem:
     item = Item(
         uid=uid or f"{source}-{rank}",
         source=source,
@@ -48,7 +50,7 @@ def ranked(source: str, rank: int, importance: int = 80, *, discarded: bool = Fa
         importance=importance,
         translated_title=None,
         summary="resumen",
-        why="",
+        why=why,
         takeaway="",
         discarded=discarded,
         discard_reason="entrada de changelog" if discarded else "",
@@ -112,6 +114,7 @@ class EditorialPolicyTest(unittest.TestCase):
             reserved_slots=2,
             relax_floor_if_empty=True,
             relaxed_max_items=3,
+            require_why=True,
         )
         # Cuatro items de vendor con mejor rank que los dos reservados: sin
         # reserva se llevarian toda la edicion.
@@ -137,6 +140,7 @@ class EditorialPolicyTest(unittest.TestCase):
             reserved_slots=2,
             relax_floor_if_empty=True,
             relaxed_max_items=3,
+            require_why=True,
         )
         candidates = [
             ranked("OpenAI Blog", 1),
@@ -227,3 +231,37 @@ class HeuristicImportanceTest(unittest.TestCase):
         result = select_items(candidates, POLICY, SOURCES, apply_importance_floor=False)
         self.assertEqual(len(result.items), 2)
         self.assertIn("cuota de grupo agotada (labs", result.rejected[0][1])
+
+
+class RequireWhyTest(unittest.TestCase):
+    def test_item_without_why_is_dropped(self) -> None:
+        result = select_items(
+            [ranked("OpenAI Blog", 1, why=""), ranked("Dan Luu", 2)],
+            POLICY,
+            SOURCES,
+        )
+        self.assertEqual(names(result), ["Dan Luu"])
+        self.assertIn("no supo decir por que importa", result.rejected[0][1])
+
+    def test_blank_why_counts_as_empty(self) -> None:
+        result = select_items([ranked("Dan Luu", 1, why="   ")], POLICY, SOURCES)
+        # cede la regla antes que dejar la edicion vacia
+        self.assertEqual(len(result.items), 1)
+
+    def test_requirement_can_be_switched_off(self) -> None:
+        from dataclasses import replace as dc_replace
+
+        policy = dc_replace(POLICY, require_why=False)
+        result = select_items([ranked("OpenAI Blog", 1, why=""), ranked("Dan Luu", 2)], policy, SOURCES)
+        self.assertEqual(len(result.items), 2)
+
+    def test_why_requirement_survives_the_heuristic_path(self) -> None:
+        # En modo degradado el 'why' lo rellena la heuristica, asi que no vacia nada.
+        result = select_items(
+            [ranked("Dan Luu", 1, importance=20, why="Seleccion automatica.")],
+            POLICY,
+            SOURCES,
+            apply_importance_floor=False,
+        )
+        self.assertEqual(len(result.items), 1)
+        self.assertEqual(result.rejected, [])

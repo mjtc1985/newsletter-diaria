@@ -32,7 +32,8 @@ def select_items(
     cuota por fuente y por grupo, reserva de huecos y limite duro.
 
     El orden importa: primero se retira lo que la IA marco como ruido, luego lo
-    que no llega al umbral, y solo despues se reparten los huecos."""
+    que no llega al umbral o no tiene motivo de relevancia, y solo despues se
+    reparten los huecos."""
     ordered = sorted(items, key=lambda ranked: (ranked.rank, -ranked.importance))
     rejected: list[tuple[RankedItem, str]] = []
     candidates: list[RankedItem] = []
@@ -43,30 +44,40 @@ def select_items(
             candidates.append(ranked)
 
     max_items = policy.max_items if policy.max_items > 0 else UNLIMITED
-    if apply_importance_floor:
-        eligible = [ranked for ranked in candidates if ranked.importance >= policy.min_importance]
-        below_floor = [ranked for ranked in candidates if ranked.importance < policy.min_importance]
-    else:
+    if not apply_importance_floor:
         # Sin ranker de IA la importancia es un score heuristico en otra escala:
         # compararlo con el umbral descartaria casi todo por artefacto.
         logger.info("Importance floor skipped: importances come from the heuristic ranking")
-        eligible = candidates
-        below_floor = []
+
+    def soft_rejection(ranked: RankedItem) -> str | None:
+        """Motivos que ceden si dejarian la edicion vacia, al contrario que los
+        descartes explicitos de la IA y las cuotas."""
+        if apply_importance_floor and ranked.importance < policy.min_importance:
+            return f"importancia {ranked.importance} por debajo del umbral {policy.min_importance}"
+        if policy.require_why and not ranked.why.strip():
+            return "la IA no supo decir por que importa ('why' vacio)"
+        return None
+
+    eligible: list[RankedItem] = []
+    soft_rejected: list[tuple[RankedItem, str]] = []
+    for ranked in candidates:
+        reason = soft_rejection(ranked)
+        if reason:
+            soft_rejected.append((ranked, reason))
+        else:
+            eligible.append(ranked)
 
     kept, quota_rejected = apply_quotas(eligible, policy, sources_by_name, max_items)
-    rejected.extend(
-        (ranked, f"importancia {ranked.importance} por debajo del umbral {policy.min_importance}")
-        for ranked in below_floor
-    )
+    rejected.extend(soft_rejected)
     rejected.extend(quota_rejected)
 
     # Red de seguridad: el umbral lo fija un modelo barato sobre titulares, asi
     # que si deja la edicion vacia lo relajamos. Los descartes explicitos de la
     # IA y las cuotas siguen aplicando: solo cede el umbral numerico.
-    if not kept and policy.relax_floor_if_empty and below_floor:
+    if not kept and policy.relax_floor_if_empty and soft_rejected:
         limit = min(policy.relaxed_max_items, max_items)
         logger.warning(
-            "No item cleared the importance floor (%d); relaxing it for up to %d items",
+            "Nothing cleared the importance floor (%d) or the 'why' requirement; relaxing both for up to %d items",
             policy.min_importance,
             limit,
         )
