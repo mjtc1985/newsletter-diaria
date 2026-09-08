@@ -121,9 +121,12 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
         # Para cada elemento del chunk, asegurar que tengamos un resultado completo
         for item, rank, importance in chunk:
             ranked_item = results_by_uid.get(item.uid)
-            # Si el elemento no vino en la respuesta por lotes o no tiene resumen.
-            # Un descarte explicito ya es una respuesta completa: no se reintenta.
-            if not ranked_item or (not ranked_item.discarded and not ranked_item.summary):
+            # Se reintenta a solas si el elemento no vino en la respuesta por
+            # lotes, si no trae resumen, o si trae el 'why' vacio: eso ultimo es
+            # a menudo ruido del lote y no un juicio, y aguas abajo la politica
+            # editorial descarta lo que no tiene 'why'. Un descarte explicito ya
+            # es una respuesta completa y no se reintenta.
+            if not ranked_item or (not ranked_item.discarded and not needs_no_retry(ranked_item)):
                 logger.info("Summarizing individually (fallback): %s", item.title)
                 try:
                     summary_data = provider.summarize_one(item)
@@ -131,6 +134,7 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
                     logger.warning("Per-item summary failed for '%s': %s; using feed text", item.title, exc)
                     summary_data = {}
 
+                previous = ranked_item
                 ranked_item = RankedItem(
                     item=item,
                     rank=rank,
@@ -142,9 +146,18 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
                     discarded=coerce_bool(summary_data.get("descartar")),
                     discard_reason=str(summary_data.get("motivo_descarte", "")).strip(),
                 )
+                # Si el reintento tampoco trae 'why' pero el lote si traia algo
+                # aprovechable, nos quedamos con lo mejor de los dos.
+                if previous and not ranked_item.why.strip() and previous.why.strip():
+                    ranked_item = previous
             summarized_by_uid[item.uid] = ranked_item
 
     return [summarized_by_uid[item.uid] for item, _, _ in ranked_ids if item.uid in summarized_by_uid]
+
+
+def needs_no_retry(ranked_item: RankedItem) -> bool:
+    """Un resultado esta completo si trae resumen y motivo de relevancia."""
+    return bool(ranked_item.summary.strip() and ranked_item.why.strip())
 
 
 def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int]]) -> list[RankedItem]:

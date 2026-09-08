@@ -252,3 +252,55 @@ class RankingAndSummariesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EmptyWhyRetryTest(unittest.TestCase):
+    """El 'why' vacio suele ser ruido del lote, no un juicio, y aguas abajo la
+    politica editorial descarta lo que no lo trae."""
+
+    def _item(self) -> Item:
+        return Item(uid="u1", source="ByteByteGo", title="Errors in LLM apps",
+                    link="http://example.com/1", published_at=datetime.now(timezone.utc), summary="Raw")
+
+    def test_empty_why_triggers_an_individual_retry(self) -> None:
+        item = self._item()
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "T", "summary": "Resumen", "why": "", "takeaway": ""}]
+        }
+        provider.summarize_one.return_value = {
+            "title": "T", "summary": "Resumen", "why": "Porque cambia como se despliegan agentes",
+            "takeaway": "Valida esquemas",
+        }
+        results = summarize_ranked_items_batch([(item, 1, 80)], provider)
+        provider.summarize_one.assert_called_once_with(item)
+        self.assertEqual(results[0].why, "Porque cambia como se despliegan agentes")
+
+    def test_complete_result_is_not_retried(self) -> None:
+        item = self._item()
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "T", "summary": "Resumen", "why": "Porque si", "takeaway": ""}]
+        }
+        summarize_ranked_items_batch([(item, 1, 80)], provider)
+        provider.summarize_one.assert_not_called()
+
+    def test_retry_does_not_lose_a_usable_batch_result(self) -> None:
+        item = self._item()
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "T", "summary": "", "why": "Motivo del lote", "takeaway": ""}]
+        }
+        provider.summarize_one.return_value = {"title": "T", "summary": "Otro resumen", "why": ""}
+        results = summarize_ranked_items_batch([(item, 1, 80)], provider)
+        self.assertEqual(results[0].why, "Motivo del lote")
+
+    def test_discarded_item_still_skips_the_retry(self) -> None:
+        item = self._item()
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "T", "summary": "S", "why": "",
+                       "descartar": True, "motivo_descarte": "changelog"}]
+        }
+        summarize_ranked_items_batch([(item, 1, 30)], provider)
+        provider.summarize_one.assert_not_called()
