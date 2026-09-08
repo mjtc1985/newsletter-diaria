@@ -30,6 +30,9 @@ PYTHONPATH=src python -m newsletter_diaria.main
   que publica una vez al mes compite varios dias sin repetirse.
 - El dedupe usa el enlace normalizado, no el uid (el uid incluye el nombre de la
   fuente, asi que el mismo articulo en dos feeds se colaba dos veces).
+- `article.py` descarga el cuerpo de cada candidato tras el recorte y antes del
+  ranking, porque el ranker tambien decide con ese texto. Sin esto, de Lobsters
+  llegan 8 caracteres ("Comments") y de Hacker News 145 de texto administrativo.
 - `cap_candidates` reparte los huecos previos al modelo por fuente, en rondas.
   Recortar por recencia le daba el cupo a quien publica mas y dejaba fuentes sin
   llegar nunca al modelo; las cuotas editoriales son posteriores al ranking y no

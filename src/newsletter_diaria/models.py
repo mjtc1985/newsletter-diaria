@@ -29,6 +29,9 @@ class Item:
     link: str
     published_at: datetime | None
     summary: str
+    # Texto del articulo descargado. El 'summary' del feed va de 8 caracteres en
+    # un agregador a la copia de marketing en un blog de vendor.
+    body: str = ""
 
 
 @dataclass(frozen=True)
@@ -138,6 +141,7 @@ class AppConfig:
     smtp_ssl: bool
     test_email: bool
     send_latest: bool
+    fetch_bodies: bool = True
     seen_file: Path = Path("output/seen.json")
     seen_retention_days: int = 30
     editorial: EditorialPolicy = DEFAULT_EDITORIAL_POLICY

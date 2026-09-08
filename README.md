@@ -249,6 +249,14 @@ Feeds do not publish at comparable rates: a vendor changelog posts several times
 day while an independent writer posts monthly. Ranking alone therefore hands the
 edition to whoever publishes most. Two mechanisms keep that in check.
 
+**Real text, not the feed blurb.** After the cap and before the ranking, each
+candidate article is downloaded and its body extracted (`article.py`, stdlib
+only). The feed blurb is 8 characters on Lobsters ("Comments"), 145 on Hacker
+News (`Article URL: ... Comments URL: ...`) and the vendor's own marketing copy
+on a product blog, so both the ranking and the summaries were being decided on
+text that said nothing. Paywalled pages, JS-rendered sites and binary links fall
+back to the feed text. Disable with `--no-fetch-bodies`.
+
 **Fair intake.** Only `--ai-candidates` items reach the model. Taking the newest
 ones hands the quota to whoever publishes most: measured on a real window, an
 aggregator took 15 of 30 slots and seven sources never reached the model at all.

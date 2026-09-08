@@ -146,7 +146,7 @@ class OpenCodeProvider:
                     "title": item.title,
                     "link": item.link,
                     "published_at": item.published_at.isoformat() if item.published_at else None,
-                    "summary_excerpt": textwrap.shorten(item.summary or item.title, width=180, placeholder="..."),
+                    "summary_excerpt": textwrap.shorten(item.body or item.summary or item.title, width=300, placeholder="..."),
                 }
                 for item in items
             ]
@@ -165,7 +165,7 @@ class OpenCodeProvider:
                     "title": item.title,
                     "link": item.link,
                     "published_at": item.published_at.isoformat() if item.published_at else None,
-                    "summary": item.summary,
+                    "summary": item.body or item.summary,
                     "rank": rank,
                     "importance": importance,
                 }
@@ -183,7 +183,7 @@ class OpenCodeProvider:
             "title": item.title,
             "link": item.link,
             "published_at": item.published_at.isoformat() if item.published_at else None,
-            "summary": item.summary,
+            "summary": item.body or item.summary,
         }
         prompt = build_summary_one_prompt(payload)
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
@@ -243,7 +243,7 @@ class OpenAICompatibleProvider:
                     "title": item.title,
                     "link": item.link,
                     "published_at": item.published_at.isoformat() if item.published_at else None,
-                    "summary_excerpt": textwrap.shorten(item.summary or item.title, width=180, placeholder="..."),
+                    "summary_excerpt": textwrap.shorten(item.body or item.summary or item.title, width=300, placeholder="..."),
                 }
                 for item in items
             ]
@@ -261,7 +261,7 @@ class OpenAICompatibleProvider:
                     "title": item.title,
                     "link": item.link,
                     "published_at": item.published_at.isoformat() if item.published_at else None,
-                    "summary": item.summary,
+                    "summary": item.body or item.summary,
                     "rank": rank,
                     "importance": importance,
                 }
@@ -279,7 +279,7 @@ class OpenAICompatibleProvider:
             "title": item.title,
             "link": item.link,
             "published_at": item.published_at.isoformat() if item.published_at else None,
-            "summary": item.summary,
+            "summary": item.body or item.summary,
         }
         prompt = build_summary_one_prompt(payload)
         return self._chat_json(prompt)

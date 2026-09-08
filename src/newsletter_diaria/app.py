@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 
+from newsletter_diaria.article import enrich_items
 from newsletter_diaria.cache import load_draft_cache, write_draft_cache
 from newsletter_diaria.editorial import log_rejections, select_items
 from newsletter_diaria.emailing import send_newsletter_email, test_email_config
@@ -53,6 +54,11 @@ def run(config: AppConfig) -> int:
 
     items = cap_candidates(items, config.ai_candidates)
     logger.info("Ranking candidates: %d", len(items))
+
+    # El cuerpo se descarga despues del recorte, para bajar 30 articulos y no 90,
+    # y antes del ranking, porque el ranker tambien decide con este texto.
+    if config.fetch_bodies:
+        items = enrich_items(items)
 
     try:
         draft = build_newsletter(items, config.ai_mode, config.llm, source_index)
