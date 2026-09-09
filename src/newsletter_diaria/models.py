@@ -47,6 +47,9 @@ class RankedItem:
     # nota promocional) en lugar de inventarle relevancia.
     discarded: bool = False
     discard_reason: str = ""
+    # "ia" u "otro", segun el ranker. El boletin va de IA; lo que no lo es tiene
+    # que ser muy notorio y ademas tiene cuota propia.
+    subject: str = ""
 
 
 @dataclass(frozen=True)
@@ -101,6 +104,8 @@ class EditorialPolicy:
     relaxed_max_items: int
     # Si la IA no supo decir por que importa un articulo, no entra.
     require_why: bool
+    # Tope de articulos que no son de IA en una edicion.
+    max_non_ai: int
 
 
 DEFAULT_RESERVED_TOPICS = frozenset({"opinion", "research", "security"})
@@ -114,10 +119,11 @@ DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
     # 24 articulos en 72h mezclando IA con gadgets, y diluirian la edicion.
     group_limits=(("labs", 5), ("press", 1)),
     reserved_topics=DEFAULT_RESERVED_TOPICS,
-    reserved_slots=3,
+    reserved_slots=0,
     relax_floor_if_empty=True,
     relaxed_max_items=3,
     require_why=True,
+    max_non_ai=2,
 )
 
 

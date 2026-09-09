@@ -33,8 +33,22 @@ FALLBACK_MODELS = [
 # marketing que el summarizer tiene que descartar después. El reparto entre
 # fuentes ya no se le pide al modelo, lo imponen las cuotas de editorial.py.
 RANKING_RULES = (
-    "ÁMBITO DEL BOLETÍN: novedades de IA en primer lugar, y desarrollo de software en\n"
-    "general en segundo. Nada de esto es negociable por muy buena que sea la noticia:\n"
+    "ÁMBITO DEL BOLETÍN: va de IA. Cuenta como IA todo lo que trate de modelos,\n"
+    "agentes, herramientas de IA, construir software con IA o sobre IA, evaluación de\n"
+    "modelos, seguridad de sistemas de IA, y su coste, límites o regulación.\n"
+    "Marca 'tema' como \"ia\" en esos casos y \"otro\" en el resto.\n"
+    "Un artículo que NO es de IA solo entra si es MUY notorio, es decir si afecta de\n"
+    "golpe a mucha gente que desarrolla software: una vulnerabilidad grave y explotada\n"
+    "en algo de uso masivo, la caída de un servicio del que depende medio sector, un\n"
+    "cambio que rompe compatibilidad en un lenguaje o framework de uso masivo, el\n"
+    "cambio de licencia de un proyecto central, o una sentencia o regulación que cambia\n"
+    "cómo se publica software. Si no llega a eso, dale importance 25 o menos aunque el\n"
+    "artículo sea bueno.\n"
+    "NO es notorio, y por tanto va a 25 o menos: una regresión o un fallo en una\n"
+    "biblioteca concreta, una guía o un how-to, una encuesta, una charla de congreso,\n"
+    "novedades de un producto de nicho, y las curiosidades de algoritmos o de historia\n"
+    "de la informática.\n"
+    "Además, nada de esto es negociable por muy buena que sea la noticia:\n"
     "- Novedades internas del ecosistema de un lenguaje o framework (notas de versión,\n"
     "  encuestas de la comunidad, 'la versión N añade tal sintaxis'): importance 20 o\n"
     "  menos, sea el lenguaje que sea. Excepción: sí importan si rompen compatibilidad,\n"
@@ -69,7 +83,7 @@ def build_ranking_prompt(payload: dict) -> str:
         "Responde en español y SOLO con JSON válido.\n"
         + RANKING_RULES
         + "Devuelve exactamente: {\"headline\":string,\"trends\":[string],"
-        "\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number}]}.\n"
+        "\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number,\"tema\":\"ia\"|\"otro\"}]}.\n"
         f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
     )
 

@@ -5,6 +5,8 @@ import sys
 import textwrap
 from datetime import datetime, timezone
 
+from dataclasses import replace
+
 from newsletter_diaria.llm import build_provider
 from newsletter_diaria.models import Item, LLMConfig, NewsletterDraft, RankedItem, Source
 from newsletter_diaria.sources import PRIORITY_WEIGHTS
@@ -70,6 +72,7 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
     try:
         ranking = provider.rank(items)
         ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
+        subjects = parse_subjects(ranking)
         logger.info("LLM backend returned %d ranked items", len(ranked_ids))
         headline = str(ranking.get("headline", "Resumen diario")).strip() if isinstance(ranking, dict) else "Resumen diario"
         trends = [str(trend).strip() for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else []) if str(trend).strip()]
@@ -79,9 +82,13 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         ranked_ids = [(h.item, h.rank, h.importance) for h in heuristic_items]
         headline = "Resumen diario de tecnología"
         trends = []
+        subjects = {}
         heuristic_importance = True
 
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
+    # El tema lo decide el ranker, que es quien ve la lista completa; se pega
+    # despues de resumir para no arrastrarlo por toda la cadena de lotes.
+    summarized = [replace(entry, subject=subjects.get(entry.item.uid, "")) for entry in summarized]
     summarized.sort(key=lambda item: (item.rank, -item.importance))
     logger.info("Summaries completed")
     return NewsletterDraft(
@@ -186,6 +193,19 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
             )
         )
     return result
+
+
+def parse_subjects(data: dict) -> dict[str, str]:
+    """uid -> "ia" u "otro", tal como lo clasifico el ranker."""
+    subjects: dict[str, str] = {}
+    for raw in (data.get("items", []) if isinstance(data, dict) else []):
+        if not isinstance(raw, dict):
+            continue
+        uid = str(raw.get("uid", "")).strip()
+        subject = str(raw.get("tema", "")).strip().lower()
+        if uid and subject in {"ia", "otro"}:
+            subjects[uid] = subject
+    return subjects
 
 
 def parse_ranking_result(data: dict, items: list[Item], sources_by_name: dict[str, Source]) -> list[tuple[Item, int, int]]:

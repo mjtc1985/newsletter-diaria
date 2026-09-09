@@ -101,6 +101,7 @@ def apply_quotas(
     per_group: Counter[str] = Counter()
     group_limits = dict(policy.group_limits)
     general_cap = max(0, max_items - policy.reserved_slots)
+    non_ai_used = 0
     general_used = 0
     deferred: list[RankedItem] = []
 
@@ -116,12 +117,20 @@ def apply_quotas(
         group_cap = group_limits.get(group, policy.max_per_group)
         if 0 < group_cap <= per_group[group]:
             return f"cuota de grupo agotada ({group}, tope {group_cap})"
+        # El boletin va de IA: lo que no lo es tiene su propio tope, ademas de
+        # tener que ser muy notorio para llegar hasta aqui.
+        nonlocal non_ai_used
+        is_non_ai = ranked.subject == "otro"
+        if is_non_ai and 0 <= policy.max_non_ai <= non_ai_used:
+            return f"cuota de temas ajenos a la IA agotada (tope {policy.max_non_ai})"
         reserved = topic_of(ranked, sources_by_name) in policy.reserved_topics
         if honour_reserve and not reserved and general_used >= general_cap:
             return DEFERRED
         kept.append(ranked)
         per_source[source_name] += 1
         per_group[group] += 1
+        if is_non_ai:
+            non_ai_used += 1
         if not reserved:
             general_used += 1
         return None

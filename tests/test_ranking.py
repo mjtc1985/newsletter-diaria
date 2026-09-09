@@ -304,3 +304,39 @@ class EmptyWhyRetryTest(unittest.TestCase):
         }
         summarize_ranked_items_batch([(item, 1, 30)], provider)
         provider.summarize_one.assert_not_called()
+
+
+class SubjectTest(unittest.TestCase):
+    def test_parse_subjects_reads_the_theme(self) -> None:
+        from newsletter_diaria.ranking import parse_subjects
+
+        data = {"items": [
+            {"uid": "a", "tema": "ia"},
+            {"uid": "b", "tema": "OTRO"},
+            {"uid": "c", "tema": "vaya"},
+            {"uid": "d"},
+            "basura",
+        ]}
+        self.assertEqual(parse_subjects(data), {"a": "ia", "b": "otro"})
+
+    def test_subject_reaches_the_ranked_items(self) -> None:
+        from pathlib import Path
+
+        from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
+        from newsletter_diaria.ranking import llm_rank_and_summarize
+
+        item = Item(uid="u1", source="LWN.net", title="TCMalloc regression",
+                    link="http://example.com/1", published_at=datetime.now(timezone.utc), summary="Raw")
+        config = LLMConfig(
+            backend="openai-compatible",
+            opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+            openai_compatible=OpenAICompatibleConfig(base_url="http://x", api_key="k", api_key_env="K", model="m", json_mode=True),
+        )
+        provider = MagicMock()
+        provider.rank.return_value = {"headline": "H", "trends": [],
+                                      "items": [{"uid": "u1", "rank": 1, "importance": 60, "tema": "otro"}]}
+        provider.summarize_batch.return_value = {"items": [
+            {"uid": "u1", "title": "T", "summary": "S", "why": "W", "takeaway": ""}]}
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            draft = llm_rank_and_summarize([item], config, {})
+        self.assertEqual(draft.items[0].subject, "otro")

@@ -17,6 +17,7 @@ POLICY = EditorialPolicy(
     relax_floor_if_empty=True,
     relaxed_max_items=3,
     require_why=True,
+    max_non_ai=2,
 )
 
 SOURCES = {
@@ -35,7 +36,7 @@ SOURCES = {
 
 
 def ranked(source: str, rank: int, importance: int = 80, *, discarded: bool = False,
-           uid: str | None = None, why: str = "porque importa") -> RankedItem:
+           uid: str | None = None, why: str = "porque importa", subject: str = "ia") -> RankedItem:
     item = Item(
         uid=uid or f"{source}-{rank}",
         source=source,
@@ -54,6 +55,7 @@ def ranked(source: str, rank: int, importance: int = 80, *, discarded: bool = Fa
         takeaway="",
         discarded=discarded,
         discard_reason="entrada de changelog" if discarded else "",
+        subject=subject,
     )
 
 
@@ -115,6 +117,7 @@ class EditorialPolicyTest(unittest.TestCase):
             relax_floor_if_empty=True,
             relaxed_max_items=3,
             require_why=True,
+            max_non_ai=2,
         )
         # Cuatro items de vendor con mejor rank que los dos reservados: sin
         # reserva se llevarian toda la edicion.
@@ -141,6 +144,7 @@ class EditorialPolicyTest(unittest.TestCase):
             relax_floor_if_empty=True,
             relaxed_max_items=3,
             require_why=True,
+            max_non_ai=2,
         )
         candidates = [
             ranked("OpenAI Blog", 1),
@@ -265,3 +269,42 @@ class RequireWhyTest(unittest.TestCase):
         )
         self.assertEqual(len(result.items), 1)
         self.assertEqual(result.rejected, [])
+
+
+class NonAiQuotaTest(unittest.TestCase):
+    def test_caps_the_items_that_are_not_about_ai(self) -> None:
+        candidates = [
+            ranked("Dan Luu", 1, subject="otro"),
+            ranked("Martin Fowler", 2, subject="otro"),
+            ranked("Krebs", 3, subject="otro"),
+            ranked("OpenAI Blog", 4, subject="ia"),
+        ]
+        result = select_items(candidates, POLICY, SOURCES)
+        self.assertEqual(names(result), ["Dan Luu", "Martin Fowler", "OpenAI Blog"])
+        self.assertTrue(any("ajenos a la IA" in reason for _, reason in result.rejected))
+
+    def test_ai_items_are_not_capped(self) -> None:
+        candidates = [ranked(name, n, subject="ia") for n, name in
+                      enumerate(["Dan Luu", "Martin Fowler", "Krebs", "Vercel Blog"], start=1)]
+        self.assertEqual(len(select_items(candidates, POLICY, SOURCES).items), 4)
+
+    def test_unclassified_items_do_not_count_as_non_ai(self) -> None:
+        # Si el ranker no clasifico (fallback heuristico), no se aplica la cuota.
+        candidates = [ranked(name, n, subject="") for n, name in
+                      enumerate(["Dan Luu", "Martin Fowler", "Krebs"], start=1)]
+        self.assertEqual(len(select_items(candidates, POLICY, SOURCES).items), 3)
+
+    def test_quota_can_be_switched_off(self) -> None:
+        from dataclasses import replace as dc_replace
+
+        policy = dc_replace(POLICY, max_non_ai=-1)
+        candidates = [ranked(name, n, subject="otro") for n, name in
+                      enumerate(["Dan Luu", "Martin Fowler", "Krebs"], start=1)]
+        self.assertEqual(len(select_items(candidates, policy, SOURCES).items), 3)
+
+    def test_zero_quota_leaves_only_ai(self) -> None:
+        from dataclasses import replace as dc_replace
+
+        policy = dc_replace(POLICY, max_non_ai=0)
+        candidates = [ranked("Dan Luu", 1, subject="otro"), ranked("OpenAI Blog", 2, subject="ia")]
+        self.assertEqual(names(select_items(candidates, policy, SOURCES)), ["OpenAI Blog"])

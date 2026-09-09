@@ -32,6 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-per-group-override", action="append", default=None, metavar="GROUP=N", help="Per-group override of --max-per-group, repeatable (e.g. labs=5)")
     parser.add_argument("--reserved-topics", default=",".join(sorted(DEFAULT_EDITORIAL_POLICY.reserved_topics)), help="Comma-separated topics that get reserved slots")
     parser.add_argument("--reserved-slots", type=int, default=DEFAULT_EDITORIAL_POLICY.reserved_slots, help="Slots held for the reserved topics")
+    parser.add_argument("--max-non-ai", type=int, default=DEFAULT_EDITORIAL_POLICY.max_non_ai, help="Maximum items not about AI in one edition (-1 = unlimited)")
     parser.add_argument("--require-why", action=argparse.BooleanOptionalAction, default=DEFAULT_EDITORIAL_POLICY.require_why, help="Drop items whose 'why it matters' came back empty")
     parser.add_argument("--relax-floor-if-empty", action=argparse.BooleanOptionalAction, default=DEFAULT_EDITORIAL_POLICY.relax_floor_if_empty, help="Relax the importance floor when it would leave the edition empty")
     parser.add_argument("--relaxed-max-items", type=int, default=DEFAULT_EDITORIAL_POLICY.relaxed_max_items, help="Maximum items when the importance floor is relaxed")
@@ -130,5 +131,6 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
             relax_floor_if_empty=args.relax_floor_if_empty,
             relaxed_max_items=args.relaxed_max_items,
             require_why=args.require_why,
+            max_non_ai=args.max_non_ai,
         ),
     )
