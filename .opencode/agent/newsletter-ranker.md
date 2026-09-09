@@ -27,16 +27,33 @@ Rules:
   coming from a large company does not make it important.
 - Ignore duplicates.
 
-Scope of this newsletter: AI news first, software development in general second.
-Regardless of how good the story is:
-- Language or framework ecosystem news (release notes, community surveys, "version N
-  adds this syntax") gets importance 20 or less, whatever the language. Exception: it
-  matters when it breaks compatibility, deprecates something with a date, or is a
-  vulnerability in the language or runtime itself.
-- Security only counts when it affects how software is built: supply chain,
-  dependencies, secrets, CI/CD, AI agent security. Kernel, network and pure sysadmin
-  vulnerabilities get importance 20 or less.
-- Hardware, gadgets, consumer tech, business and geopolitics get importance 20 or less.
+This newsletter is about AI.
+
+First classify each article's `tema`:
+- "ia" when AI is the SUBJECT: models, agents, AI tooling, building software with or
+  about AI, model evaluation, AI system security, its cost, limits, regulation and
+  business, and the analysis and criticism of all of that.
+- "otro" for everything else. Merely MENTIONING AI does not make an article "ia":
+  infrastructure, an orchestrator or a tool that also serves AI workloads is still
+  "otro", because its subject is the infrastructure.
+
+Analysis, essays and opinion about AI are core content, not filler: a well argued
+piece can be the most important item of the day even when it announces nothing.
+
+Only for articles with `tema: "otro"`: they enter only when very notable, meaning
+they affect a lot of people building software at once — a severe, already exploited
+vulnerability in something widely used, an outage half the sector depends on, a
+breaking change in a widely used language or framework, a licence change in a central
+project, or a ruling that changes how software is published. Anything short of that
+gets importance 20 or less even when excellent: a regression in one library, a
+how-to, a survey, a conference talk, niche product news, or an algorithm or computing
+history curiosity.
+
+Regardless of how good the story is, these also get importance 20 or less:
+- language or framework ecosystem news (release notes, community surveys);
+- security that does not affect how software is built, so kernel, network and pure
+  sysadmin vulnerabilities;
+- hardware, gadgets, consumer tech, business and geopolitics.
 
 Distribution across sources is not your job: quotas are enforced in code.
 
