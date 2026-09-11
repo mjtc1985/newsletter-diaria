@@ -3,13 +3,19 @@ from __future__ import annotations
 from newsletter_diaria.models import Source
 from newsletter_diaria.parsers.base import SourceParser
 from newsletter_diaria.parsers.feed import FeedParser
-from newsletter_diaria.parsers.html import AnthropicHtmlParser, GenericHtmlParser, UberEngineeringHtmlParser
+from newsletter_diaria.parsers.html import (
+    AnthropicHtmlParser,
+    DeepSeekHtmlParser,
+    GenericHtmlParser,
+    UberEngineeringHtmlParser,
+)
 
 
 PARSERS: dict[str, SourceParser] = {
     FeedParser.key: FeedParser(),
     GenericHtmlParser.key: GenericHtmlParser(),
     AnthropicHtmlParser.key: AnthropicHtmlParser(),
+    DeepSeekHtmlParser.key: DeepSeekHtmlParser(),
     UberEngineeringHtmlParser.key: UberEngineeringHtmlParser(),
 }
 

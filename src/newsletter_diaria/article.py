@@ -23,7 +23,7 @@ MIN_BLOCK_CHARS = 40
 
 BINARY_SUFFIXES = (".pdf", ".zip", ".tar", ".gz", ".mp3", ".mp4", ".png", ".jpg", ".jpeg", ".gif", ".webm")
 
-MAX_BODY_WORKERS = 8
+MAX_BODY_WORKERS = 12
 
 
 class ArticleTextParser(HTMLParser):

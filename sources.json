@@ -278,6 +278,16 @@
       "url": "https://openssf.org/feed/",
       "topic": "security",
       "priority": "medium"
+    },
+    {
+      "name": "DeepSeek",
+      "url": "https://www.deepseek.com/en/news",
+      "topic": "ai",
+      "priority": "high",
+      "kind": "html",
+      "max_items": 6,
+      "parser": "deepseek",
+      "group": "labs"
     }
   ]
 }

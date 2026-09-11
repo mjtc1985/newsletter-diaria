@@ -5,6 +5,7 @@ import re
 import ssl
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import zip_longest
 from datetime import datetime, timezone
 from typing import Iterable
 from urllib.error import URLError
@@ -20,6 +21,22 @@ try:
 except Exception:  # pragma: no cover
     certifi = None
 
+
+# Terminos que delatan que un articulo va de IA. Sirven para elegir que aporta
+# cada fuente cuando no caben todos sus articulos, no para puntuar ni descartar:
+# de eso se encarga el modelo despues. Van sin tildes y en minusculas porque se
+# comparan contra el titulo y el resumen del feed, que llegan en ingles.
+AI_TERMS = (
+    r"artificial intelligence", r"\bai\b", r"\ba\.i\.", r"machine learning", r"\bml\b",
+    r"\bllms?\b", r"large language model", r"foundation model", r"frontier model",
+    r"generative", r"genai", r"transformer", r"neural", r"diffusion", r"embeddings?",
+    r"fine.?tun", r"inference", r"quantiz", r"benchmark", r"hallucinat", r"prompt",
+    r"\bagentic\b", r"\bagents?\b", r"copilot", r"chatbot", r"\brag\b",
+    r"model context protocol", r"\bmcp\b", r"open.?weight",
+    r"openai", r"\bgpt\b", r"chatgpt", r"anthropic", r"claude", r"deepseek", r"gemini",
+    r"\bqwen\b", r"mistral", r"hugging ?face", r"llama", r"deepmind", r"nvidia",
+)
+AI_PATTERN = re.compile("|".join(AI_TERMS), re.I)
 
 UA = "newsletter-diaria/0.1"
 FETCH_TIMEOUT_SECONDS = 12
@@ -56,6 +73,37 @@ def collect_items(sources: Iterable[Source]) -> list[Item]:
             except Exception as exc:  # pragma: no cover - defensive per-source isolation
                 print(f"[warn] {source.name}: {exc}", file=sys.stderr)
     return items
+
+
+def ai_relevance(item: Item) -> int:
+    """Cuantos terminos distintos de IA aparecen en el titulo y el resumen."""
+    haystack = f"{item.title} {item.summary}"
+    return len({match.group(0).lower() for match in AI_PATTERN.finditer(haystack)})
+
+
+def source_priority(items: list[Item]) -> list[Item]:
+    """Orden en que una fuente ofrece sus articulos cuando no caben todos.
+
+    Alterna entre lo que mas parece de IA y lo mas reciente. Solo por recencia,
+    una fuente con 50 articulos al dia entregaba los dos ultimos que publico, que
+    con este boletin es casi azar. Solo por tema, una noticia ajena a la IA pero
+    muy notoria no llegaria nunca al modelo."""
+    minimum_date = datetime.min.replace(tzinfo=timezone.utc)
+
+    def stamp(item: Item) -> float:
+        return (item.published_at or minimum_date).timestamp()
+
+    by_topic = sorted(items, key=lambda item: (-ai_relevance(item), -stamp(item)))
+    by_recency = sorted(items, key=lambda item: -stamp(item))
+
+    ordered: list[Item] = []
+    seen: set[str] = set()
+    for topical, recent in zip_longest(by_topic, by_recency):
+        for candidate in (topical, recent):
+            if candidate is not None and candidate.uid not in seen:
+                seen.add(candidate.uid)
+                ordered.append(candidate)
+    return ordered
 
 
 def apply_url_excludes(source: Source, items: list[Item]) -> list[Item]:
@@ -146,6 +194,43 @@ def parse_anthropic_listing(source: Source, html_text: str) -> list[Item]:
         published_at = parse_datetime(
             extract_between(body, "time") or extract_jsonld_date(body) or extract_jsonld_date(html_text)
         )
+        items.append(
+            Item(
+                uid=make_uid(source.name, title, full),
+                source=source.name,
+                title=clean_text(title),
+                link=full,
+                published_at=published_at,
+                summary=clean_text(summary),
+            )
+        )
+        seen.add(full)
+        if len(items) >= source.max_items:
+            break
+    return items
+
+
+def parse_deepseek_listing(source: Source, html_text: str) -> list[Item]:
+    """DeepSeek no publica RSS: ni /rss.xml ni /feed ni /news/rss.xml existen.
+    Su listado de noticias si es HTML estable, con una tarjeta <a> por noticia
+    que lleva dentro la fecha, el titular y la entradilla."""
+    items: list[Item] = []
+    seen: set[str] = set()
+    pattern = re.compile(r'<a[^>]+href="(?P<href>/(?:en/)?news/[^"]+)"[^>]*>(?P<body>.*?)</a>', re.I | re.S)
+    for match in pattern.finditer(html_text):
+        full = urljoin(source.url, match.group("href"))
+        if full in seen:
+            continue
+        body = match.group("body")
+        title = extract_between(body, "h2") or extract_between(body, "h3") or extract_between(body, "h4")
+        if not title:
+            continue
+        date_match = re.search(r'text-ds-description[^>]*>([^<]{6,40})<', body, re.I)
+        published_at = parse_datetime(clean_text(date_match.group(1))) if date_match else None
+        # La entradilla es el ultimo parrafo del bloque: el primero es el rotulo
+        # con la seccion y la fecha.
+        paragraphs = [clean_text(paragraph) for paragraph in re.findall(r"<p[^>]*>(.*?)</p>", body, re.I | re.S)]
+        summary = next((paragraph for paragraph in reversed(paragraphs) if len(paragraph) > 40), title)
         items.append(
             Item(
                 uid=make_uid(source.name, title, full),
@@ -356,6 +441,7 @@ def cap_candidates(items: list[Item], limit: int) -> list[Item]:
     by_source: dict[str, list[Item]] = {}
     for item in sorted(items, key=moment, reverse=True):
         by_source.setdefault(item.source, []).append(item)
+    by_source = {name: source_priority(bucket) for name, bucket in by_source.items()}
 
     # Las fuentes con la novedad mas fresca van primero, para que en la ultima
     # ronda incompleta entren esas y no las de la cola del alfabeto.
