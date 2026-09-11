@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from newsletter_diaria.models import Item, NewsletterDraft, RankedItem
-from newsletter_diaria.utils import parse_datetime
+from newsletter_diaria.utils import parse_datetime, text_value
 
 
 def write_draft_cache(draft: NewsletterDraft, cache_file: Path) -> None:
@@ -43,28 +43,28 @@ def load_draft_cache(cache_file: Path) -> NewsletterDraft:
         if not isinstance(raw, dict):
             continue
         item = Item(
-            uid=str(raw.get("uid", "")),
-            source=str(raw.get("source", "")),
-            title=str(raw.get("title", "")),
-            link=str(raw.get("link", "")),
-            published_at=parse_datetime(str(raw.get("published_at", ""))) if raw.get("published_at") else None,
-            summary=str(raw.get("summary", "")),
+            uid=text_value(raw.get("uid")),
+            source=text_value(raw.get("source")),
+            title=text_value(raw.get("title")),
+            link=text_value(raw.get("link")),
+            published_at=parse_datetime(text_value(raw.get("published_at"))) if raw.get("published_at") else None,
+            summary=text_value(raw.get("summary")),
         )
         ranked_items.append(
             RankedItem(
                 item=item,
                 rank=int(raw.get("rank", len(ranked_items) + 1)),
                 importance=int(raw.get("importance", 50)),
-                translated_title=str(raw.get("translated_title", "")).strip() or None,
-                summary=str(raw.get("summary_ai", raw.get("summary", ""))),
-                why=str(raw.get("why", "")),
-                takeaway=str(raw.get("takeaway", "")),
+                translated_title=text_value(raw.get("translated_title")) or None,
+                summary=text_value(raw.get("summary_ai"), text_value(raw.get("summary"))),
+                why=text_value(raw.get("why")),
+                takeaway=text_value(raw.get("takeaway")),
             )
         )
 
     ranked_items.sort(key=lambda item: (item.rank, -item.importance))
     return NewsletterDraft(
-        headline=str(data.get("headline", "Daily roundup")),
-        trends=[str(value) for value in data.get("trends", []) if str(value).strip()],
+        headline=text_value(data.get("headline"), "Daily roundup"),
+        trends=[trend for trend in (text_value(value) for value in data.get("trends", [])) if trend],
         items=ranked_items,
     )

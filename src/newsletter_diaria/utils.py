@@ -23,6 +23,18 @@ def parse_datetime(value: str) -> datetime | None:
             return None
 
 
+def text_value(value: object, default: str = "") -> str:
+    """Lee un campo de texto del JSON del backend tratando null como ausencia.
+
+    El backend devuelve null en los campos que no supo rellenar, y str(None)
+    produce la cadena "None": salia impresa como titulo, y ademas hacia que un
+    'why' vacio contase como relleno y el articulo se colase por el filtro."""
+    if value is None:
+        return default
+    text = value.strip() if isinstance(value, str) else str(value).strip()
+    return text or default
+
+
 def clean_text(value: str) -> str:
     text = html.unescape(value or "")
     text = re.sub(r"<[^>]+>", " ", text)

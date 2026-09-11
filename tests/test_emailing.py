@@ -72,3 +72,36 @@ class EmailingTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CacheNullTitleTest(unittest.TestCase):
+    """Un articulo sin traducir se guarda con translated_title null, y al
+    releerlo para --send-latest salia como el titulo literal "None"."""
+
+    def test_reloading_a_null_title_falls_back_to_the_original(self) -> None:
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from newsletter_diaria.cache import load_draft_cache
+
+        payload = {
+            "headline": "H",
+            "trends": [None, "una tendencia"],
+            "items": [{
+                "uid": "u1", "source": "S", "title": "Original title",
+                "link": "https://x.dev/1", "published_at": None, "summary": "resumen",
+                "rank": 1, "importance": 80,
+                "translated_title": None, "summary_ai": None, "why": None, "takeaway": None,
+            }],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "latest.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            draft = load_draft_cache(path)
+
+        ranked = draft.items[0]
+        self.assertIsNone(ranked.translated_title)
+        self.assertEqual(ranked.translated_title or ranked.item.title, "Original title")
+        self.assertEqual(ranked.summary, "resumen")
+        self.assertEqual(draft.trends, ["una tendencia"])

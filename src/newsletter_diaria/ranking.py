@@ -10,6 +10,7 @@ from dataclasses import replace
 from newsletter_diaria.llm import build_provider
 from newsletter_diaria.models import Item, LLMConfig, NewsletterDraft, RankedItem, Source
 from newsletter_diaria.sources import PRIORITY_WEIGHTS
+from newsletter_diaria.utils import text_value
 
 logger = logging.getLogger("newsletter_diaria")
 
@@ -74,8 +75,9 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
         subjects = parse_subjects(ranking)
         logger.info("LLM backend returned %d ranked items", len(ranked_ids))
-        headline = str(ranking.get("headline", "Resumen diario")).strip() if isinstance(ranking, dict) else "Resumen diario"
-        trends = [str(trend).strip() for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else []) if str(trend).strip()]
+        headline = text_value(ranking.get("headline"), "Resumen diario") if isinstance(ranking, dict) else "Resumen diario"
+        trends = [text_value(trend) for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else [])]
+        trends = [trend for trend in trends if trend]
     except Exception as exc:
         logger.warning("LLM ranking failed (%s); using heuristic ranking for order and continuing with AI summaries", exc)
         heuristic_items = heuristic_rank(items, sources_by_name)
@@ -142,29 +144,46 @@ def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provid
                     summary_data = {}
 
                 previous = ranked_item
-                ranked_item = RankedItem(
+                retried = RankedItem(
                     item=item,
                     rank=rank,
                     importance=importance,
-                    translated_title=str(summary_data.get("title", "")).strip() or None,
-                    summary=str(summary_data.get("summary", "")).strip() or item.summary,
-                    why=str(summary_data.get("why", "")).strip(),
-                    takeaway=str(summary_data.get("takeaway", "")).strip(),
+                    translated_title=text_value(summary_data.get("title")) or None,
+                    summary=text_value(summary_data.get("summary")),
+                    why=text_value(summary_data.get("why")),
+                    takeaway=text_value(summary_data.get("takeaway")),
                     discarded=coerce_bool(summary_data.get("descartar")),
-                    discard_reason=str(summary_data.get("motivo_descarte", "")).strip(),
+                    discard_reason=text_value(summary_data.get("motivo_descarte")),
                 )
-                # Si el reintento tampoco trae 'why' pero el lote si traia algo
-                # aprovechable, nos quedamos con lo mejor de los dos.
-                if previous and not ranked_item.why.strip() and previous.why.strip():
-                    ranked_item = previous
+                # El reintento puede salir peor que el lote en algun campo, asi
+                # que nos quedamos campo a campo con lo que venga relleno.
+                merged = retried if previous is None else RankedItem(
+                    item=item,
+                    rank=rank,
+                    importance=importance,
+                    translated_title=retried.translated_title or previous.translated_title,
+                    summary=retried.summary or previous.summary,
+                    why=retried.why or previous.why,
+                    takeaway=retried.takeaway or previous.takeaway,
+                    discarded=retried.discarded or previous.discarded,
+                    discard_reason=retried.discard_reason or previous.discard_reason,
+                )
+                # El texto del feed es el ultimo recurso, ya fusionados los dos
+                # intentos: si se usara como valor por defecto del reintento,
+                # pisaria siempre al resumen bueno del lote.
+                ranked_item = merged if merged.summary else replace(merged, summary=item.summary)
             summarized_by_uid[item.uid] = ranked_item
 
     return [summarized_by_uid[item.uid] for item, _, _ in ranked_ids if item.uid in summarized_by_uid]
 
 
 def needs_no_retry(ranked_item: RankedItem) -> bool:
-    """Un resultado esta completo si trae resumen y motivo de relevancia."""
-    return bool(ranked_item.summary.strip() and ranked_item.why.strip())
+    """Completo es traer titulo traducido, resumen y motivo de relevancia."""
+    return bool(
+        (ranked_item.translated_title or "").strip()
+        and ranked_item.summary.strip()
+        and ranked_item.why.strip()
+    )
 
 
 def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int]]) -> list[RankedItem]:
@@ -174,7 +193,7 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
     for raw in raw_items:
         if not isinstance(raw, dict):
             continue
-        uid = str(raw.get("uid", "")).strip()
+        uid = text_value(raw.get("uid"))
         entry = by_uid.get(uid)
         if not entry:
             continue
@@ -184,12 +203,12 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
                 item=item,
                 rank=rank,
                 importance=importance,
-                translated_title=str(raw.get("title", "")).strip() or None,
-                summary=str(raw.get("summary", item.summary)).strip(),
-                why=str(raw.get("why", "")).strip(),
-                takeaway=str(raw.get("takeaway", "")).strip(),
+                translated_title=text_value(raw.get("title")) or None,
+                summary=text_value(raw.get("summary"), item.summary),
+                why=text_value(raw.get("why")),
+                takeaway=text_value(raw.get("takeaway")),
                 discarded=coerce_bool(raw.get("descartar")),
-                discard_reason=str(raw.get("motivo_descarte", "")).strip(),
+                discard_reason=text_value(raw.get("motivo_descarte")),
             )
         )
     return result
@@ -201,8 +220,8 @@ def parse_subjects(data: dict) -> dict[str, str]:
     for raw in (data.get("items", []) if isinstance(data, dict) else []):
         if not isinstance(raw, dict):
             continue
-        uid = str(raw.get("uid", "")).strip()
-        subject = str(raw.get("tema", "")).strip().lower()
+        uid = text_value(raw.get("uid"))
+        subject = text_value(raw.get("tema")).lower()
         if uid and subject in {"ia", "otro"}:
             subjects[uid] = subject
     return subjects
@@ -216,7 +235,7 @@ def parse_ranking_result(data: dict, items: list[Item], sources_by_name: dict[st
     for raw in raw_items:
         if not isinstance(raw, dict):
             continue
-        uid = str(raw.get("uid", "")).strip()
+        uid = text_value(raw.get("uid"))
         item = by_uid.get(uid)
         if not item:
             continue

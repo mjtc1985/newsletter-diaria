@@ -340,3 +340,54 @@ class SubjectTest(unittest.TestCase):
         with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
             draft = llm_rank_and_summarize([item], config, {})
         self.assertEqual(draft.items[0].subject, "otro")
+
+
+class NullFieldsTest(unittest.TestCase):
+    """El backend devuelve null en los campos que no supo rellenar. str(None)
+    daba la cadena "None": salia como titulo y colaba el articulo por el filtro
+    de 'why', que es justo lo contrario de lo que hace falta."""
+
+    def _item(self) -> Item:
+        return Item(uid="u1", source="X", title="Original title", link="l",
+                    published_at=datetime.now(timezone.utc), summary="resumen del feed")
+
+    def test_null_fields_do_not_become_the_string_none(self) -> None:
+        item = self._item()
+        data = {"items": [{"uid": "u1", "title": None, "summary": None, "why": None,
+                           "takeaway": None, "motivo_descarte": None}]}
+        result = parse_summary_batch_result(data, [(item, 1, 80)])[0]
+        self.assertIsNone(result.translated_title)
+        self.assertEqual(result.summary, "resumen del feed")
+        self.assertEqual(result.why, "")
+        self.assertEqual(result.takeaway, "")
+        self.assertEqual(result.discard_reason, "")
+
+    def test_a_null_why_still_triggers_the_retry(self) -> None:
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "T", "summary": "S", "why": None}]
+        }
+        provider.summarize_one.return_value = {"title": "T", "summary": "S", "why": "Motivo real"}
+        results = summarize_ranked_items_batch([(self._item(), 1, 80)], provider)
+        provider.summarize_one.assert_called_once()
+        self.assertEqual(results[0].why, "Motivo real")
+
+    def test_an_untranslated_title_triggers_the_retry(self) -> None:
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "", "summary": "S", "why": "W"}]
+        }
+        provider.summarize_one.return_value = {"title": "Título traducido", "summary": "S", "why": "W"}
+        results = summarize_ranked_items_batch([(self._item(), 1, 80)], provider)
+        self.assertEqual(results[0].translated_title, "Título traducido")
+
+    def test_the_retry_merges_field_by_field(self) -> None:
+        provider = MagicMock()
+        provider.summarize_batch.return_value = {
+            "items": [{"uid": "u1", "title": "Título del lote", "summary": "Resumen del lote", "why": ""}]
+        }
+        provider.summarize_one.return_value = {"title": None, "summary": "", "why": "Motivo del reintento"}
+        results = summarize_ranked_items_batch([(self._item(), 1, 80)], provider)
+        self.assertEqual(results[0].translated_title, "Título del lote")
+        self.assertEqual(results[0].summary, "Resumen del lote")
+        self.assertEqual(results[0].why, "Motivo del reintento")
