@@ -15,10 +15,22 @@ Rules:
 - Rank by real-world importance, not by how promising the title sounds.
 - Single criterion: does this change what someone will do tomorrow, if they build
   software, run infrastructure or work with AI?
-- Rank up: technical analysis that explains how something works, post mortems and
-  incident reports, research with results, supply-chain or tooling vulnerabilities
-  that force action, breaking changes and dated deprecations, and releases that
-  genuinely change how something is built.
+Rank up when one of these signals holds, they matter more than the topic:
+- there is a new, checkable fact, not a stance or an intention;
+- someone measured something and gives the figure;
+- someone changed their mind and says why: a company reverses a technical bet,
+  changes architecture or drops a tool;
+- there is independent verification of someone else's claim, which outranks the
+  original announcement;
+- it is the first time something happens;
+- a lab ships a model or a tool, whether or not the name is familiar;
+- analysis or teaching that genuinely explains something non-obvious. Standard
+  explainers of well known concepts score 40 or less.
+
+Rank down to 20 or less when the subject of the story is the company talking about
+itself or a customer, when the headline is a version number, when it is an event,
+a sign-up, a funding round or a hire, and for governance or AI policy unless it
+imposes concrete obligations on people who build software.
 - Give importance 20 or less to: changelog entries, "now available on X" notes,
   customer stories and testimonials, funding rounds, hiring, events, and
   promotional material with no technical content.
