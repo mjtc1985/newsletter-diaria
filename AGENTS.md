@@ -1,4 +1,6 @@
-# AGENTS.md
+# 🤖 Guía para Agentes de IA — Newsletter Diaria
+
+> **Guía Central del Ecosistema**: Para credenciales compartidas, entorno Python, Llavero de claves (`tokens-pat-keys`) y estándares globales, consulta [`../AGENTS.md`](../AGENTS.md).
 
 Proyecto: newsletter diaria técnica.
 
