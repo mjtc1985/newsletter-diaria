@@ -271,6 +271,29 @@ class RequireWhyTest(unittest.TestCase):
         self.assertEqual(result.rejected, [])
 
 
+class DefaultPolicyTest(unittest.TestCase):
+    """Los topes por defecto se subieron tras comparar una edicion elegida a mano
+    con lo que dejaba pasar la politica: una sola fuente tenia cuatro de los diez
+    mejores del dia y solo entraba uno."""
+
+    def test_defaults_allow_two_per_source_and_two_for_the_press(self) -> None:
+        from newsletter_diaria.models import DEFAULT_EDITORIAL_POLICY
+
+        self.assertEqual(DEFAULT_EDITORIAL_POLICY.max_per_source, 2)
+        self.assertEqual(dict(DEFAULT_EDITORIAL_POLICY.group_limits)["press"], 2)
+        self.assertEqual(dict(DEFAULT_EDITORIAL_POLICY.group_limits)["labs"], 5)
+        self.assertEqual(DEFAULT_EDITORIAL_POLICY.max_per_group, 2)
+
+    def test_two_from_one_source_fit_but_not_three(self) -> None:
+        from dataclasses import replace as dc_replace
+
+        policy = dc_replace(POLICY, max_per_source=2)
+        candidates = [ranked("Dan Luu", n, uid=f"u{n}") for n in range(1, 4)]
+        result = select_items(candidates, policy, SOURCES)
+        self.assertEqual(len(result.items), 2)
+        self.assertIn("cuota de fuente agotada", result.rejected[0][1])
+
+
 class NonAiQuotaTest(unittest.TestCase):
     def test_caps_the_items_that_are_not_about_ai(self) -> None:
         candidates = [

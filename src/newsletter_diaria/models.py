@@ -113,11 +113,13 @@ DEFAULT_RESERVED_TOPICS = frozenset({"opinion", "research", "security"})
 DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
     min_importance=40,
     max_items=10,
-    max_per_source=1,
+    # Dos por fuente: con uno, una fuente que tenia cuatro de los diez mejores
+    # del dia entregaba uno, y el tope se llevaba lo segundo y lo tercero mejor.
+    max_per_source=2,
     max_per_group=2,
-    # labs a 5 por decision explicita. press a 1: The Register y compania traen
-    # 24 articulos en 72h mezclando IA con gadgets, y diluirian la edicion.
-    group_limits=(("labs", 5), ("press", 1)),
+    # labs a 5 por decision explicita. press a 2: con uno, el tope se comia un
+    # lanzamiento de laboratorio, que es justo lo que hay que no perder.
+    group_limits=(("labs", 5), ("press", 2)),
     reserved_topics=DEFAULT_RESERVED_TOPICS,
     reserved_slots=0,
     relax_floor_if_empty=True,
