@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 import ssl
@@ -208,6 +209,85 @@ def parse_anthropic_listing(source: Source, html_text: str) -> list[Item]:
         if len(items) >= source.max_items:
             break
     return items
+
+
+# Descargas minimas para considerar que un modelo es un lanzamiento y no uno de
+# los miles de ajustes finos que se suben cada dia.
+HF_MIN_DOWNLOADS = 500
+
+# La pagina del modelo se renderiza en cliente y no deja texto que extraer, asi
+# que la descripcion se lee de la tarjeta del modelo en crudo.
+HF_CARD_MAX_CHARS = 2000
+
+
+def parse_huggingface_models(source: Source, raw: bytes) -> list[Item]:
+    """Lanzamientos de modelos, venga el modelo del laboratorio que venga.
+
+    Una lista de fuentes es estatica y no puede saber que ayer nacio un
+    laboratorio. Esto llega por el otro lado: el sitio donde los lanzamientos se
+    materializan. El orden por tendencia y el minimo de descargas dejan fuera el
+    ruido de ajustes finos."""
+    try:
+        payload = json.loads(raw.decode("utf-8", errors="ignore"))
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise RuntimeError(f"Hugging Face returned invalid JSON: {exc}") from exc
+    if not isinstance(payload, list):
+        return []
+
+    items: list[Item] = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            continue
+        model_id = str(entry.get("id", "")).strip()
+        downloads = entry.get("downloads") or 0
+        if not model_id or not isinstance(downloads, int) or downloads < HF_MIN_DOWNLOADS:
+            continue
+        published_at = parse_datetime(str(entry.get("createdAt", "")))
+        author = model_id.split("/", 1)[0]
+        task = str(entry.get("pipeline_tag", "")).strip()
+        likes = entry.get("likes") or 0
+        title = f"{author} publica el modelo {model_id} en Hugging Face"
+        summary = (
+            f"{model_id} esta entre los modelos con mas traccion de Hugging Face: "
+            f"{downloads} descargas y {likes} me gusta"
+            + (f", para la tarea {task}" if task else "")
+            + "."
+        )
+        link = f"https://huggingface.co/{model_id}"
+        card = fetch_model_card(model_id)
+        if card:
+            summary = f"{summary} {card}"
+        items.append(
+            Item(
+                uid=make_uid(source.name, title, link),
+                source=source.name,
+                title=title,
+                link=link,
+                published_at=published_at,
+                summary=summary,
+            )
+        )
+        if len(items) >= source.max_items:
+            break
+    return items
+
+
+def fetch_model_card(model_id: str) -> str:
+    """Texto de la tarjeta del modelo, sin la cabecera YAML ni el adorno."""
+    try:
+        raw = fetch_xml(f"https://huggingface.co/{model_id}/raw/main/README.md").decode("utf-8", errors="ignore")
+    except Exception as exc:
+        logger.info("No model card for %s (%s)", model_id, exc)
+        return ""
+    if raw.startswith("---"):
+        parts = raw.split("---", 2)
+        raw = parts[2] if len(parts) > 2 else raw
+    text = re.sub(r"```.*?```", " ", raw, flags=re.S)
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", text)
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[#*_>`|-]+", " ", text)
+    return clean_text(text)[:HF_CARD_MAX_CHARS]
 
 
 def parse_deepseek_listing(source: Source, html_text: str) -> list[Item]:

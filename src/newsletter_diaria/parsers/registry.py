@@ -6,6 +6,7 @@ from newsletter_diaria.parsers.feed import FeedParser
 from newsletter_diaria.parsers.html import (
     AnthropicHtmlParser,
     DeepSeekHtmlParser,
+    HuggingFaceModelsParser,
     GenericHtmlParser,
     UberEngineeringHtmlParser,
 )
@@ -16,6 +17,7 @@ PARSERS: dict[str, SourceParser] = {
     GenericHtmlParser.key: GenericHtmlParser(),
     AnthropicHtmlParser.key: AnthropicHtmlParser(),
     DeepSeekHtmlParser.key: DeepSeekHtmlParser(),
+    HuggingFaceModelsParser.key: HuggingFaceModelsParser(),
     UberEngineeringHtmlParser.key: UberEngineeringHtmlParser(),
 }
 

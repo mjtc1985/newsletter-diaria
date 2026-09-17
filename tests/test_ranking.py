@@ -391,3 +391,66 @@ class NullFieldsTest(unittest.TestCase):
         self.assertEqual(results[0].translated_title, "Título del lote")
         self.assertEqual(results[0].summary, "Resumen del lote")
         self.assertEqual(results[0].why, "Motivo del reintento")
+
+
+class PreselectionTest(unittest.TestCase):
+    def _items(self, count: int = 100):
+        return [Item(uid=f"u{n}", source=f"S{n % 7}", title=f"Title {n}", link=f"https://x.dev/{n}",
+                     published_at=datetime.now(timezone.utc), summary="s") for n in range(1, count + 1)]
+
+    def _config(self):
+        from pathlib import Path
+
+        from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
+
+        return LLMConfig(
+            backend="openai-compatible",
+            opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+            openai_compatible=OpenAICompatibleConfig(base_url="http://x", api_key="k", api_key_env="K", model="m", json_mode=True),
+        )
+
+    def test_uses_the_models_picks(self) -> None:
+        from newsletter_diaria.ranking import preselect_candidates
+
+        items = self._items()
+        provider = MagicMock()
+        provider.preselect.return_value = {"elegidos": list(range(1, 61))}
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            chosen = preselect_candidates(items, 60, self._config())
+        self.assertEqual([i.uid for i in chosen], [f"u{n}" for n in range(1, 61)])
+
+    def test_ignores_out_of_range_and_duplicate_numbers(self) -> None:
+        from newsletter_diaria.ranking import parse_preselection
+
+        items = self._items(10)
+        data = {"elegidos": [1, 1, 0, 11, -3, "4", 2, None]}
+        self.assertEqual([i.uid for i in parse_preselection(data, items, 60)], ["u1", "u4", "u2"])
+
+    def test_falls_back_to_the_per_source_share_when_it_fails(self) -> None:
+        from newsletter_diaria.ranking import preselect_candidates
+
+        items = self._items()
+        provider = MagicMock()
+        provider.preselect.side_effect = RuntimeError("503")
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            chosen = preselect_candidates(items, 60, self._config())
+        self.assertEqual(len(chosen), 60)
+        self.assertGreater(len({i.source for i in chosen}), 1)
+
+    def test_falls_back_when_the_answer_is_too_thin(self) -> None:
+        from newsletter_diaria.ranking import preselect_candidates
+
+        items = self._items()
+        provider = MagicMock()
+        provider.preselect.return_value = {"elegidos": [1, 2, 3]}
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            self.assertEqual(len(preselect_candidates(items, 60, self._config())), 60)
+
+    def test_does_not_call_the_model_when_everything_fits(self) -> None:
+        from newsletter_diaria.ranking import preselect_candidates
+
+        items = self._items(10)
+        provider = MagicMock()
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            self.assertEqual(len(preselect_candidates(items, 60, self._config())), 10)
+        provider.preselect.assert_not_called()

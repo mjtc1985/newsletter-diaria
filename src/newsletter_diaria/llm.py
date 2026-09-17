@@ -143,7 +143,32 @@ def build_summary_one_prompt(payload: dict) -> str:
     )
 
 
+# La preseleccion usa un indice y no el uid: un uid pasa de 150 caracteres y
+# multiplicado por dos centenares de candidatos engorda el prompt sin aportar.
+def build_preselect_prompt(payload: dict, limit: int) -> str:
+    return (
+        "Responde en español y SOLO con JSON válido.\n"
+        "Esta es la lista de titulares candidatos de hoy para un boletín diario sobre IA.\n"
+        f"Elige como mucho {limit} que merezcan que los leamos enteros para decidir después.\n"
+        "Es una criba amplia, no la selección final: ante la duda, incluye.\n"
+        "Prioriza lo que trate de IA: modelos, agentes, herramientas, evaluación, seguridad\n"
+        "de sistemas de IA, su coste, sus límites, su regulación, y el análisis y la crítica\n"
+        "de todo eso. Incluye también el lanzamiento de un laboratorio que no conozcas: que\n"
+        "el nombre no te suene no lo hace menos importante.\n"
+        "Descarta titulares de gadgets, consumo, hardware, deportes, política general y\n"
+        "novedades internas de ecosistemas de lenguajes de programación.\n"
+        "De lo que no sea de IA, incluye solo lo muy notorio: una vulnerabilidad grave y ya\n"
+        "explotada en algo de uso masivo, la caída de un servicio del que depende medio\n"
+        "sector, o un cambio que rompe compatibilidad en algo de uso masivo.\n"
+        "Devuelve exactamente: {\"elegidos\":[number]}, con los números 'n' de la lista.\n"
+        f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
+    )
+
+
 class LLMProvider(Protocol):
+    def preselect(self, items: list[Item], limit: int) -> dict:
+        raise NotImplementedError
+
     def rank(self, items: list[Item]) -> dict:
         raise NotImplementedError
 
@@ -157,6 +182,15 @@ class LLMProvider(Protocol):
 class OpenCodeProvider:
     def __init__(self, config: OpenCodeConfig):
         self.config = config
+
+    def preselect(self, items: list[Item], limit: int) -> dict:
+        payload = {"articulos": [
+            {"n": index, "source": item.source, "title": item.title}
+            for index, item in enumerate(items, start=1)
+        ]}
+        prompt = build_preselect_prompt(payload, limit)
+        logger.info("Preselecting up to %s of %s candidates", limit, len(items))
+        return self._run_json(agent=self.config.ranker_agent, prompt=prompt)
 
     def rank(self, items: list[Item]) -> dict:
         payload = {
@@ -254,6 +288,15 @@ class OpenAICompatibleProvider:
         self.base_url = (config.base_url or "https://api.openai.com/v1").rstrip("/")
         self.model = config.model
         self.api_key = config.api_key or os.getenv(config.api_key_env)
+
+    def preselect(self, items: list[Item], limit: int) -> dict:
+        payload = {"articulos": [
+            {"n": index, "source": item.source, "title": item.title}
+            for index, item in enumerate(items, start=1)
+        ]}
+        prompt = build_preselect_prompt(payload, limit)
+        logger.info("Preselecting up to %s of %s candidates", limit, len(items))
+        return self._chat_json(prompt)
 
     def rank(self, items: list[Item]) -> dict:
         payload = {

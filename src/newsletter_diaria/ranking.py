@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from dataclasses import replace
 
+from newsletter_diaria.ingest import cap_candidates
 from newsletter_diaria.llm import build_provider
 from newsletter_diaria.models import Item, LLMConfig, NewsletterDraft, RankedItem, Source
 from newsletter_diaria.sources import PRIORITY_WEIGHTS
@@ -49,6 +50,45 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
             trends=[],
             heuristic_importance=True,
         )
+
+
+def preselect_candidates(items: list[Item], limit: int, config: LLMConfig) -> list[Item]:
+    """Criba previa al ranking, hecha por el modelo sobre los titulares.
+
+    El recorte por fuente con una lista de palabras es ciego y premia los
+    nombres de laboratorio escritos a mano: un lanzamiento de un laboratorio
+    desconocido perdia contra tres noticias de OpenAI. Si la llamada falla o
+    devuelve poco aprovechable, se vuelve al reparto por fuente."""
+    if len(items) <= limit:
+        return items
+    try:
+        data = build_provider(config).preselect(items, limit)
+        chosen = parse_preselection(data, items, limit)
+    except Exception as exc:
+        logger.warning("Preselection failed (%s); falling back to the per-source share", exc)
+        return cap_candidates(items, limit)
+
+    # Una respuesta pobre es peor que el heuristico: mejor no fiarse.
+    if len(chosen) < limit // 2:
+        logger.warning("Preselection returned only %d items; falling back to the per-source share", len(chosen))
+        return cap_candidates(items, limit)
+    logger.info("Preselection kept %d of %d candidates", len(chosen), len(items))
+    return chosen
+
+
+def parse_preselection(data: dict, items: list[Item], limit: int) -> list[Item]:
+    raw_numbers = data.get("elegidos", []) if isinstance(data, dict) else []
+    chosen: list[Item] = []
+    seen: set[int] = set()
+    for raw in raw_numbers:
+        number = coerce_int(raw, default=0)
+        if number in seen or not 1 <= number <= len(items):
+            continue
+        seen.add(number)
+        chosen.append(items[number - 1])
+        if len(chosen) >= limit:
+            break
+    return chosen
 
 
 def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> list[RankedItem]:

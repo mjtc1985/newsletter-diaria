@@ -94,3 +94,43 @@ class FetchBodyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HuggingFaceModelsTest(unittest.TestCase):
+    PAYLOAD = b"""[
+      {"id":"deepseek-ai/DeepSeek-V4.1-Flash","createdAt":"2026-09-10T08:00:00.000Z",
+       "downloads":366459,"likes":812,"pipeline_tag":"text-generation"},
+      {"id":"alguien/ajuste-fino-cualquiera","createdAt":"2026-09-10T09:00:00.000Z",
+       "downloads":12,"likes":0},
+      {"id":"sin-descargas/modelo","createdAt":"2026-09-10T09:00:00.000Z","likes":3},
+      "basura"
+    ]"""
+
+    def _source(self, max_items: int = 8):
+        from newsletter_diaria.models import Source
+
+        return Source("Hugging Face (lanzamientos)", "https://huggingface.co/api/models",
+                      kind="html", max_items=max_items, parser="huggingface_models")
+
+    def test_keeps_launches_and_drops_fine_tunes(self) -> None:
+        from newsletter_diaria.ingest import parse_huggingface_models
+
+        items = parse_huggingface_models(self._source(), self.PAYLOAD)
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertIn("deepseek-ai", item.title)
+        self.assertEqual(item.link, "https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash")
+        self.assertEqual(item.published_at.date().isoformat(), "2026-09-10")
+        self.assertIn("366459", item.summary)
+        self.assertIn("text-generation", item.summary)
+
+    def test_invalid_json_raises_so_the_source_is_skipped(self) -> None:
+        from newsletter_diaria.ingest import parse_huggingface_models
+
+        with self.assertRaises(RuntimeError):
+            parse_huggingface_models(self._source(), b"<html>no soy json</html>")
+
+    def test_a_non_list_payload_yields_nothing(self) -> None:
+        from newsletter_diaria.ingest import parse_huggingface_models
+
+        self.assertEqual(parse_huggingface_models(self._source(), b'{"error":"nope"}'), [])

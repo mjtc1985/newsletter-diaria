@@ -281,6 +281,36 @@
       "max_items": 6,
       "parser": "deepseek",
       "group": "labs"
+    },
+    {
+      "name": "TechCrunch AI",
+      "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+      "topic": "ai",
+      "priority": "medium",
+      "group": "press"
+    },
+    {
+      "name": "AI News",
+      "url": "https://www.artificialintelligence-news.com/feed/",
+      "topic": "ai",
+      "priority": "medium",
+      "group": "press"
+    },
+    {
+      "name": "MIT Technology Review",
+      "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+      "topic": "ai",
+      "priority": "medium",
+      "group": "press"
+    },
+    {
+      "name": "Hugging Face (lanzamientos)",
+      "url": "https://huggingface.co/api/models?sort=trendingScore&direction=-1&limit=100",
+      "topic": "ai",
+      "priority": "high",
+      "kind": "html",
+      "max_items": 8,
+      "parser": "huggingface_models"
     }
   ]
 }

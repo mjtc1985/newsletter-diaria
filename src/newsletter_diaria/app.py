@@ -9,7 +9,7 @@ from newsletter_diaria.editorial import log_rejections, select_items
 from newsletter_diaria.emailing import send_newsletter_email, test_email_config
 from newsletter_diaria.ingest import cap_candidates, collect_items, dedupe, filter_recent
 from newsletter_diaria.models import AppConfig, NewsletterDraft
-from newsletter_diaria.ranking import build_newsletter
+from newsletter_diaria.ranking import build_newsletter, preselect_candidates
 from newsletter_diaria.renderers import render_console, write_markdown
 from newsletter_diaria.sources import load_sources, sources_by_name
 from newsletter_diaria.state import filter_unseen, load_seen, record_seen
@@ -52,7 +52,10 @@ def run(config: AppConfig) -> int:
         print("No new news items found.")
         return 0
 
-    items = cap_candidates(items, config.ai_candidates)
+    if config.ai_mode == "off":
+        items = cap_candidates(items, config.ai_candidates)
+    else:
+        items = preselect_candidates(items, config.ai_candidates, config.llm)
     logger.info("Ranking candidates: %d", len(items))
 
     # El cuerpo se descarga despues del recorte, para bajar 30 articulos y no 90,

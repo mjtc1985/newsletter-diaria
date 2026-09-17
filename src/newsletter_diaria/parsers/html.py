@@ -33,6 +33,15 @@ class AnthropicHtmlParser(SourceParser):
         return parse_anthropic_listing(source, fetch_html(source.url))
 
 
+class HuggingFaceModelsParser(SourceParser):
+    key = "huggingface_models"
+
+    def parse(self, source: Source) -> list[Item]:
+        from newsletter_diaria.ingest import fetch_xml, parse_huggingface_models
+
+        return parse_huggingface_models(source, fetch_xml(source.url))
+
+
 class DeepSeekHtmlParser(SourceParser):
     key = "deepseek"
 
