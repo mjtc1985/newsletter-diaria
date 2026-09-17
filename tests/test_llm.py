@@ -139,7 +139,11 @@ class PromptBuilderTest(unittest.TestCase):
 
         prompt = build_ranking_prompt({"items": [{"uid": "u1"}, {"uid": "u2"}]})
         self.assertIn("importance 20 o menos", prompt)
-        self.assertIn("entradas de changelog", prompt)
+        self.assertIn("changelog", prompt.lower())
+        # las señales que decidimos a mano sobre una piscina real
+        self.assertIn("verificación independiente", prompt)
+        self.assertIn("número de versión", prompt)
+        self.assertIn("cambiado de decisión", prompt)
         self.assertIn("TODOS los uid exactamente una vez", prompt)
         self.assertIn('"u1"', prompt)
         self.assertIn('"u2"', prompt)
