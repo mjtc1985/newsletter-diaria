@@ -331,3 +331,17 @@ class NonAiQuotaTest(unittest.TestCase):
         policy = dc_replace(POLICY, max_non_ai=0)
         candidates = [ranked("Dan Luu", 1, subject="otro"), ranked("OpenAI Blog", 2, subject="ia")]
         self.assertEqual(names(select_items(candidates, policy, SOURCES)), ["OpenAI Blog"])
+
+
+class ArxivCapTest(unittest.TestCase):
+    def test_arxiv_is_limited_to_one_a_day(self) -> None:
+        from dataclasses import replace as dc_replace
+
+        from newsletter_diaria.models import Source
+
+        sources = dict(SOURCES)
+        sources["arXiv cs.SE"] = Source("arXiv cs.SE", "u", topic="research", group="arxiv")
+        policy = dc_replace(POLICY, max_per_source=2, group_limits=(("arxiv", 1),))
+        candidates = [ranked("arXiv cs.SE", n, uid=f"a{n}") for n in range(1, 4)] + [ranked("Dan Luu", 4)]
+        result = select_items(candidates, policy, sources)
+        self.assertEqual([i.item.source for i in result.items], ["arXiv cs.SE", "Dan Luu"])

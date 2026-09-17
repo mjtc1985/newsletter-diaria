@@ -119,7 +119,9 @@ DEFAULT_EDITORIAL_POLICY = EditorialPolicy(
     max_per_group=2,
     # labs a 5 por decision explicita. press a 2: con uno, el tope se comia un
     # lanzamiento de laboratorio, que es justo lo que hay que no perder.
-    group_limits=(("labs", 5), ("press", 2)),
+    # arxiv a 1 por decision explicita: aporta 29 candidatos al dia y con dos
+    # huecos desplaza a la prensa y a los laboratorios.
+    group_limits=(("labs", 5), ("press", 2), ("arxiv", 1)),
     reserved_topics=DEFAULT_RESERVED_TOPICS,
     reserved_slots=0,
     relax_floor_if_empty=True,

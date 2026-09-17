@@ -258,7 +258,8 @@
       "name": "arXiv cs.SE",
       "url": "http://export.arxiv.org/rss/cs.SE",
       "topic": "research",
-      "priority": "medium"
+      "priority": "medium",
+      "group": "arxiv"
     },
     {
       "name": "Trail of Bits",
