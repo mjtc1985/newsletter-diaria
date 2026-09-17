@@ -198,13 +198,6 @@
       "priority": "high"
     },
     {
-      "name": "The Register",
-      "url": "https://www.theregister.com/headlines.atom",
-      "topic": "press",
-      "priority": "medium",
-      "group": "press"
-    },
-    {
       "name": "Ars Technica",
       "url": "https://feeds.arstechnica.com/arstechnica/technology-lab",
       "topic": "press",
