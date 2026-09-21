@@ -21,10 +21,9 @@ HTTP_RETRY_STATUS = {429, 500, 502, 503, 504}
 HTTP_MAX_ATTEMPTS = 3
 HTTP_RETRY_CAP_SECONDS = 35.0
 FALLBACK_MODELS = [
-    "gemini-2.5-flash-lite",
-    "gemini-flash-lite-latest",
-    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
+    "gemini-3-flash-preview",
 ]
 
 

@@ -9,7 +9,7 @@ StateDirectory=newsletter-diaria
 Environment=TMPDIR=/var/lib/newsletter-diaria
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NEWSLETTER_LLM_BACKEND=openai-compatible
-Environment=NEWSLETTER_LLM_MODEL=gemini-flash-lite-latest
+Environment=NEWSLETTER_LLM_MODEL=gemini-3.1-flash-lite
 TimeoutStartSec=600
 # El registro de enviados es estado operativo: vive en StateDirectory para que
 # un redespliegue o un git clean del repo no lo borre.

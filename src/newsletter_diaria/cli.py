@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--opencode-ranker-agent", default="newsletter-ranker", help="opencode agent used for ranking")
     parser.add_argument("--opencode-summarizer-agent", default="newsletter-summarizer", help="opencode agent used for summaries")
     parser.add_argument("--opencode-cwd", type=Path, default=Path.cwd(), help="Working directory for opencode")
-    parser.add_argument("--llm-model", default=os.getenv("NEWSLETTER_LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gemini-flash-lite-latest", help="Model used by the OpenAI-compatible backend")
+    parser.add_argument("--llm-model", default=os.getenv("NEWSLETTER_LLM_MODEL") or os.getenv("OPENAI_MODEL") or "gemini-3.1-flash-lite", help="Model used by the OpenAI-compatible backend")
     parser.add_argument("--llm-base-url", default=os.getenv("NEWSLETTER_LLM_BASE_URL") or os.getenv("OPENAI_BASE_URL"), help="Base URL for the OpenAI-compatible backend")
     parser.add_argument("--llm-api-key", default=os.getenv("NEWSLETTER_LLM_API_KEY"), help="API key for the OpenAI-compatible backend")
     parser.add_argument("--llm-api-key-env", default=os.getenv("NEWSLETTER_LLM_API_KEY_ENV", "OPENAI_API_KEY"), help="Environment variable name to read the API key from when --llm-api-key is not set")

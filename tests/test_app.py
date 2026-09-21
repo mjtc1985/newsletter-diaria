@@ -21,7 +21,7 @@ class AppRunTest(unittest.TestCase):
             llm=LLMConfig(
                 backend="openai-compatible",
                 opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
-                openai_compatible=OpenAICompatibleConfig(base_url="https://example.com", api_key="k", api_key_env="K", model="gemini-flash-lite-latest", json_mode=True),
+                openai_compatible=OpenAICompatibleConfig(base_url="https://example.com", api_key="k", api_key_env="K", model="gemini-3.1-flash-lite", json_mode=True),
             ),
             send_email=True,
             email_to="recipient@example.com",
