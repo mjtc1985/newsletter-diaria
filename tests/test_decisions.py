@@ -241,3 +241,17 @@ class InvertedFunnelTest(unittest.TestCase):
             draft = summarize_selection(selected, config)
         self.assertEqual(draft.headline, "Resumen diario")
         self.assertEqual(len(draft.items), 1)
+
+
+class SubjectInstructionTest(unittest.TestCase):
+    """La regla de 'solo mencionarla no cuenta' mando a 'otro' un articulo sobre
+    como la programacion con IA rompio el CI de alguien, y la cuota de no-IA lo
+    remato. La IA como causa tiene que contar."""
+
+    def test_the_instruction_distinguishes_cause_from_mention(self) -> None:
+        from newsletter_diaria.decisions import SUBJECT_INSTRUCTIONS
+
+        self.assertIn("CAUSA", SUBJECT_INSTRUCTIONS)
+        self.assertIn("cuello de botella", SUBJECT_INSTRUCTIONS)
+        self.assertIn("si quitas la IA de la historia", SUBJECT_INSTRUCTIONS)
+        self.assertIn("orquestador", SUBJECT_INSTRUCTIONS)

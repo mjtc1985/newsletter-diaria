@@ -50,11 +50,18 @@ VERIFIABILITY_LEVELS = [
 ]
 
 SUBJECT_INSTRUCTIONS = (
-    "El ASUNTO del articulo es la inteligencia artificial: modelos, agentes, herramientas de IA, "
-    "construir software con IA o sobre IA, evaluar modelos, seguridad de sistemas de IA, su coste, "
-    "sus limites, su regulacion o su negocio, y el analisis y la critica de todo eso. "
-    "Que un articulo solo MENCIONE la IA no cuenta: una infraestructura o una herramienta que "
-    "ademas sirve para cargas de trabajo de IA sigue teniendo como asunto la infraestructura."
+    "La inteligencia artificial es el asunto del articulo, o es la causa de lo que cuenta.\n"
+    "Cuenta como IA: modelos, agentes, herramientas de IA, construir software con IA o sobre IA, "
+    "evaluar modelos, seguridad de sistemas de IA, su coste, sus limites, su regulacion o su "
+    "negocio, y el analisis y la critica de todo eso.\n"
+    "Cuenta tambien cuando la IA es la CAUSA de la noticia aunque el objeto sea otra cosa: "
+    "'la programacion con IA nos ha convertido el CI en un cuello de botella' cuenta, porque sin "
+    "la IA no habria noticia, y lo mismo una empresa que cambia de arquitectura porque la IA le "
+    "cambia los costes.\n"
+    "NO cuenta cuando la IA solo aparece mencionada o como una carga de trabajo mas: un "
+    "orquestador que anade planificacion para cargas de IA sigue teniendo como asunto el "
+    "orquestador, porque la noticia existiria igual sin la IA.\n"
+    "La pregunta que lo decide es: si quitas la IA de la historia, ¿queda noticia?"
 )
 COMMERCIAL_INSTRUCTIONS = (
     "Es material comercial: una entrada de changelog, una nota de producto del tipo 'ya disponible "
