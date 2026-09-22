@@ -16,11 +16,12 @@ logger = logging.getLogger("newsletter_diaria")
 
 DEFAULT_BASE_URL = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_MODEL = "jev-latest"
-# La Raspberry es su propio servidor DNS. En frio resuelve sin fallar, pero una
-# rafaga de doscientas consultas la tumbaba: abriamos conexion nueva, con su
-# consulta y su handshake TLS, para cada llamada. Con la conexion reutilizada por
-# hilo son cuatro consultas en toda la ejecucion en vez de doscientas.
-MAX_WORKERS = 4
+# La Raspberry es su propio servidor DNS y una rafaga de doscientas consultas la
+# tumbaba, porque abriamos conexion nueva por llamada. Con la conexion
+# reutilizada por hilo son diez consultas en toda la ejecucion. Medido sobre 40
+# articulos: 4.3 s con cuatro hilos, 2.9 s con diez, 7.2 s con dieciseis, que ya
+# se degrada.
+MAX_WORKERS = 10
 RETRY_ATTEMPTS = 3
 RETRY_PAUSE_SECONDS = 1.5
 TIMEOUT_SECONDS = 25
