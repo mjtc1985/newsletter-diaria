@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from urllib import error, request
@@ -13,7 +14,12 @@ logger = logging.getLogger("newsletter_diaria")
 
 DEFAULT_BASE_URL = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_MODEL = "jev-latest"
-MAX_WORKERS = 12
+# La Raspberry no resuelve DNS con doce peticiones simultaneas: con doce fallaban
+# quince de doscientas con "Temporary failure in name resolution", y cada fallo
+# saca un articulo de la edicion por red y no por criterio.
+MAX_WORKERS = 4
+RETRY_ATTEMPTS = 3
+RETRY_PAUSE_SECONDS = 1.5
 TIMEOUT_SECONDS = 25
 
 # El texto que se le pasa por articulo. La decision se toma sobre el cuerpo
@@ -111,6 +117,17 @@ class TypeSafeDecider:
         self.model = model
 
     def ask(self, state: dict, questions: dict) -> dict:
+        last: Exception | None = None
+        for attempt in range(1, RETRY_ATTEMPTS + 1):
+            try:
+                return self.ask_once(state, questions)
+            except RuntimeError as exc:
+                last = exc
+                if attempt < RETRY_ATTEMPTS:
+                    time.sleep(RETRY_PAUSE_SECONDS * attempt)
+        raise last or RuntimeError("TypeSafe failed")
+
+    def ask_once(self, state: dict, questions: dict) -> dict:
         body = json.dumps({"model": self.model, "state": state, "questions": questions}).encode("utf-8")
         http_request = request.Request(
             self.base_url,

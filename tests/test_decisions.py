@@ -76,6 +76,29 @@ class DeciderTest(unittest.TestCase):
             self.assertEqual(decider.worth_reading([item()]), {"u1": 0.73})
 
 
+class RetryTest(unittest.TestCase):
+    def test_a_transient_failure_is_retried(self) -> None:
+        decider = TypeSafeDecider(api_key="k")
+        calls = {"n": 0}
+
+        def flaky(state, questions):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("Could not reach TypeSafe: name resolution")
+            return {"merece": {"noul": 0.9}}
+
+        with patch.object(decider, "ask_once", side_effect=flaky), \
+             patch("newsletter_diaria.decisions.time.sleep"):
+            self.assertEqual(decider.worth_reading([item()]), {"u1": 0.9})
+        self.assertEqual(calls["n"], 3)
+
+    def test_it_gives_up_after_the_last_attempt(self) -> None:
+        decider = TypeSafeDecider(api_key="k")
+        with patch.object(decider, "ask_once", side_effect=RuntimeError("503")), \
+             patch("newsletter_diaria.decisions.time.sleep"):
+            self.assertEqual(decider.worth_reading([item()]), {})
+
+
 class PreselectionFallbackTest(unittest.TestCase):
     def _items(self, n: int = 100):
         return [Item(uid=f"u{i}", source=f"S{i % 5}", title=f"T{i}", link=f"https://x/{i}",
