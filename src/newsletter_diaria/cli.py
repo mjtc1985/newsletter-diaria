@@ -23,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sources", type=Path, default=Path("sources.json"), help="Path to the sources JSON config")
     parser.add_argument("--ai-mode", choices=("auto", "required", "off"), default="auto", help="Use AI for ranking and summaries")
     parser.add_argument("--ai-candidates", type=int, default=60, help="Maximum number of candidates sent to AI")
+    parser.add_argument("--decision-model", action=argparse.BooleanOptionalAction, default=True, help="Use the TypeSafe decision model for preselection, scoring and subject when TYPESAFE_API_KEY is set")
     parser.add_argument("--fetch-bodies", action=argparse.BooleanOptionalAction, default=True, help="Download each candidate article and rank and summarize from its text instead of the feed blurb")
     parser.add_argument("--seen-file", type=Path, default=Path("output/seen.json"), help="Path to the store of already sent articles")
     parser.add_argument("--seen-retention-days", type=int, default=30, help="How long an article stays in the seen store")
@@ -116,6 +117,7 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
         test_email=args.test_email,
         send_latest=args.send_latest,
         fetch_bodies=args.fetch_bodies,
+        use_decision_model=args.decision_model,
         seen_file=args.seen_file,
         seen_retention_days=args.seen_retention_days,
         editorial=EditorialPolicy(

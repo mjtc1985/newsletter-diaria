@@ -5,6 +5,7 @@ import sys
 
 from newsletter_diaria.article import enrich_items
 from newsletter_diaria.cache import load_draft_cache, write_draft_cache
+from newsletter_diaria.decisions import build_decider
 from newsletter_diaria.editorial import log_rejections, select_items
 from newsletter_diaria.emailing import send_newsletter_email, test_email_config
 from newsletter_diaria.ingest import cap_candidates, collect_items, dedupe, filter_recent
@@ -52,10 +53,14 @@ def run(config: AppConfig) -> int:
         print("No new news items found.")
         return 0
 
+    decider = build_decider() if config.use_decision_model and config.ai_mode != "off" else None
+    if decider:
+        logger.info("Decision model active: preselection, scoring and subject come from TypeSafe")
+
     if config.ai_mode == "off":
         items = cap_candidates(items, config.ai_candidates)
     else:
-        items = preselect_candidates(items, config.ai_candidates, config.llm)
+        items = preselect_candidates(items, config.ai_candidates, config.llm, decider)
     logger.info("Ranking candidates: %d", len(items))
 
     # El cuerpo se descarga despues del recorte, para bajar 30 articulos y no 90,
@@ -64,7 +69,7 @@ def run(config: AppConfig) -> int:
         items = enrich_items(items)
 
     try:
-        draft = build_newsletter(items, config.ai_mode, config.llm, source_index)
+        draft = build_newsletter(items, config.ai_mode, config.llm, source_index, decider)
     except RuntimeError as exc:
         print(f"(x) {exc}", file=sys.stderr)
         return 1

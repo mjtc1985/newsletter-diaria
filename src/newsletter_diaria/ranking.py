@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from dataclasses import replace
 
+from newsletter_diaria.decisions import Judgement, TypeSafeDecider
 from newsletter_diaria.ingest import cap_candidates
 from newsletter_diaria.llm import build_provider
 from newsletter_diaria.models import Item, LLMConfig, NewsletterDraft, RankedItem, Source
@@ -20,7 +21,13 @@ logger = logging.getLogger("newsletter_diaria")
 DEGRADED_HEADLINE = "Resumen diario (modo básico, sin IA)"
 
 
-def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
+def build_newsletter(
+    items: list[Item],
+    ai_mode: str,
+    llm_config: LLMConfig,
+    sources_by_name: dict[str, Source],
+    decider: TypeSafeDecider | None = None,
+) -> NewsletterDraft:
     if not items:
         return NewsletterDraft(headline="", items=[], trends=[])
 
@@ -38,7 +45,7 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
         if llm_config.backend == "local-cli":
             backend_label = f"local-cli:{llm_config.opencode.cli_command}"
         logger.info("Using %s backend for ranking and summaries", backend_label)
-        return llm_rank_and_summarize(items, llm_config, sources_by_name)
+        return llm_rank_and_summarize(items, llm_config, sources_by_name, decider)
     except Exception as exc:
         if ai_mode == "required":
             print(f"[warn] LLM backend failed ({exc}); using heuristic ranking so the newsletter still ships.", file=sys.stderr)
@@ -52,7 +59,12 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
         )
 
 
-def preselect_candidates(items: list[Item], limit: int, config: LLMConfig) -> list[Item]:
+def preselect_candidates(
+    items: list[Item],
+    limit: int,
+    config: LLMConfig,
+    decider: TypeSafeDecider | None = None,
+) -> list[Item]:
     """Criba previa al ranking, hecha por el modelo sobre los titulares.
 
     El recorte por fuente con una lista de palabras es ciego y premia los
@@ -61,6 +73,22 @@ def preselect_candidates(items: list[Item], limit: int, config: LLMConfig) -> li
     devuelve poco aprovechable, se vuelve al reparto por fuente."""
     if len(items) <= limit:
         return items
+
+    if decider is not None:
+        try:
+            scores = decider.worth_reading(items)
+        except Exception as exc:
+            logger.warning("Decision model preselection failed (%s); using the language model", exc)
+            scores = {}
+        # Una respuesta parcial no vale: los que no contestaron competirian con un
+        # cero y se caerian por un fallo de red, no por su contenido.
+        if len(scores) >= len(items) * 0.9:
+            ordered = sorted(items, key=lambda item: -scores.get(item.uid, 0.0))
+            logger.info("Decision model preselection kept %d of %d candidates", limit, len(items))
+            return ordered[:limit]
+        if scores:
+            logger.warning("Decision model answered for %d of %d; using the language model", len(scores), len(items))
+
     try:
         data = build_provider(config).preselect(items, limit)
         chosen = parse_preselection(data, items, limit)
@@ -107,8 +135,20 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
     ]
 
 
-def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
+def llm_rank_and_summarize(
+    items: list[Item],
+    config: LLMConfig,
+    sources_by_name: dict[str, Source],
+    decider: TypeSafeDecider | None = None,
+) -> NewsletterDraft:
     provider = build_provider(config)
+    judgements: dict[str, Judgement] = {}
+    if decider is not None:
+        try:
+            judgements = decider.judge(items)
+            logger.info("Decision model judged %d of %d candidates", len(judgements), len(items))
+        except Exception as exc:
+            logger.warning("Decision model judgement failed (%s); the language model decides", exc)
     heuristic_importance = False
     try:
         ranking = provider.rank(items)
@@ -127,10 +167,29 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         subjects = {}
         heuristic_importance = True
 
+    if judgements:
+        # El orden y las notas salen del modelo de decisiones; del modelo de
+        # lenguaje se conservan el titular de la edicion y las tendencias, que
+        # son prosa. Lo que ya viene descartado no se resume: ahorra llamadas.
+        judged = [(item, judgements[item.uid]) for item, _, _ in ranked_ids if item.uid in judgements]
+        judged.sort(key=lambda pair: -pair[1].importance)
+        kept = [(item, judgement) for item, judgement in judged if not judgement.discarded]
+        dropped = [(item, judgement) for item, judgement in judged if judgement.discarded]
+        logger.info("Decision model discarded %d as commercial before summarizing", len(dropped))
+        ranked_ids = [(item, index, judgement.importance) for index, (item, judgement) in enumerate(kept, start=1)]
+        heuristic_importance = False
+
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
     # El tema lo decide el ranker, que es quien ve la lista completa; se pega
     # despues de resumir para no arrastrarlo por toda la cadena de lotes.
-    summarized = [replace(entry, subject=subjects.get(entry.item.uid, "")) for entry in summarized]
+    if judgements:
+        summarized = [
+            replace(entry, subject=judgements[entry.item.uid].subject)
+            for entry in summarized
+            if entry.item.uid in judgements
+        ]
+    else:
+        summarized = [replace(entry, subject=subjects.get(entry.item.uid, "")) for entry in summarized]
     summarized.sort(key=lambda item: (item.rank, -item.importance))
     logger.info("Summaries completed")
     return NewsletterDraft(

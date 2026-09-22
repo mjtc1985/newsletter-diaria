@@ -152,6 +152,7 @@ class AppConfig:
     test_email: bool
     send_latest: bool
     fetch_bodies: bool = True
+    use_decision_model: bool = True
     seen_file: Path = Path("output/seen.json")
     seen_retention_days: int = 30
     editorial: EditorialPolicy = DEFAULT_EDITORIAL_POLICY
