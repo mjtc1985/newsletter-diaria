@@ -3,10 +3,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from urllib import error, request
+from http.client import HTTPException, HTTPSConnection
+from urllib.parse import urlsplit
 
 from newsletter_diaria.models import Item
 
@@ -14,9 +16,10 @@ logger = logging.getLogger("newsletter_diaria")
 
 DEFAULT_BASE_URL = "https://api.typesafe.ai/v1/systemone"
 DEFAULT_MODEL = "jev-latest"
-# La Raspberry no resuelve DNS con doce peticiones simultaneas: con doce fallaban
-# quince de doscientas con "Temporary failure in name resolution", y cada fallo
-# saca un articulo de la edicion por red y no por criterio.
+# La Raspberry es su propio servidor DNS. En frio resuelve sin fallar, pero una
+# rafaga de doscientas consultas la tumbaba: abriamos conexion nueva, con su
+# consulta y su handshake TLS, para cada llamada. Con la conexion reutilizada por
+# hilo son cuatro consultas en toda la ejecucion en vez de doscientas.
 MAX_WORKERS = 4
 RETRY_ATTEMPTS = 3
 RETRY_PAUSE_SECONDS = 1.5
@@ -115,6 +118,26 @@ class TypeSafeDecider:
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
+        parts = urlsplit(base_url)
+        self.host = parts.netloc
+        self.path = parts.path or "/"
+        self.local = threading.local()
+
+    def connection(self) -> HTTPSConnection:
+        existing = getattr(self.local, "conn", None)
+        if existing is None:
+            existing = HTTPSConnection(self.host, timeout=TIMEOUT_SECONDS)
+            self.local.conn = existing
+        return existing
+
+    def drop_connection(self) -> None:
+        existing = getattr(self.local, "conn", None)
+        if existing is not None:
+            try:
+                existing.close()
+            except Exception:  # pragma: no cover - cierre defensivo
+                pass
+            self.local.conn = None
 
     def ask(self, state: dict, questions: dict) -> dict:
         last: Exception | None = None
@@ -129,20 +152,23 @@ class TypeSafeDecider:
 
     def ask_once(self, state: dict, questions: dict) -> dict:
         body = json.dumps({"model": self.model, "state": state, "questions": questions}).encode("utf-8")
-        http_request = request.Request(
-            self.base_url,
-            data=body,
-            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-            method="POST",
-        )
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        connection = self.connection()
         try:
-            with request.urlopen(http_request, timeout=TIMEOUT_SECONDS) as response:
-                payload = json.loads(response.read().decode("utf-8"))
-        except error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="ignore")[:200]
-            raise RuntimeError(f"TypeSafe failed with HTTP {exc.code}: {detail}") from exc
-        except (error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+            connection.request("POST", self.path, body=body, headers=headers)
+            response = connection.getresponse()
+            status, raw = response.status, response.read()
+        except (HTTPException, OSError) as exc:
+            self.drop_connection()
             raise RuntimeError(f"Could not reach TypeSafe: {exc}") from exc
+
+        if status != 200:
+            self.drop_connection()
+            raise RuntimeError(f"TypeSafe failed with HTTP {status}: {raw[:200].decode('utf-8', errors='ignore')}")
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise RuntimeError(f"TypeSafe returned invalid JSON: {exc}") from exc
         answers = payload.get("answers")
         if not isinstance(answers, dict):
             raise RuntimeError("TypeSafe returned no answers")
