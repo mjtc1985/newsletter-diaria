@@ -58,10 +58,27 @@ SUBJECT_INSTRUCTIONS = (
 )
 COMMERCIAL_INSTRUCTIONS = (
     "Es material comercial: una entrada de changelog, una nota de producto del tipo 'ya disponible "
-    "en X', un caso de cliente o testimonial, una ronda de financiacion, o promocion de producto. "
+    "en X', un caso de cliente o testimonial, o promocion de producto. Tambien lo es cuando el "
+    "sujeto de la noticia es la propia empresa contando lo bien que le va o como alguien usa su "
+    "producto. "
     "Un analisis, un tutorial, un ensayo o un post mortem NO son material comercial aunque te "
     "parezcan flojos."
 )
+VERSION_INSTRUCTIONS = (
+    "El asunto es una version: notas de una release, 'la version N anade tal cosa', una encuesta "
+    "de la comunidad de un lenguaje, o novedades internas del ecosistema de un lenguaje o "
+    "framework. No cuenta si rompe compatibilidad, depreca algo con fecha, o es una "
+    "vulnerabilidad del propio lenguaje o runtime."
+)
+EXPLAINER_INSTRUCTIONS = (
+    "Es divulgacion estandar de un concepto ya conocido, del tipo 'que es X explicado', que no "
+    "ensena nada no obvio a quien ya trabaja en esto. Un analisis con un hallazgo propio, un post "
+    "mortem o una investigacion con resultados NO son divulgacion estandar."
+)
+EVENT_INSTRUCTIONS = (
+    "Es un evento, un congreso, una inscripcion, una ronda de financiacion o una contratacion."
+)
+
 WORTH_READING_INSTRUCTIONS = (
     "Merece que leamos el articulo entero para decidir si entra en un boletin diario sobre IA. "
     "Es una criba amplia: ante la duda, di que si. "
@@ -74,6 +91,13 @@ WORTH_READING_INSTRUCTIONS = (
 )
 
 
+# Topes de los criterios negativos, los mismos que tenia escritos el prompt.
+VERSION_CAP = 20
+EVENT_CAP = 20
+EXPLAINER_CAP = 40
+FLAG_THRESHOLD = 0.6
+
+
 @dataclass(frozen=True)
 class Judgement:
     """Lo que el modelo de decisiones dice de un articulo."""
@@ -82,15 +106,31 @@ class Judgement:
     verifiability: float    # 0 a 5
     is_ai: float            # probabilidad 0 a 1
     commercial: float       # probabilidad 0 a 1
+    version: float = 0.0    # probabilidad 0 a 1
+    explainer: float = 0.0
+    event: float = 0.0
 
     @property
     def importance(self) -> int:
         """Nota de 1 a 100, para que el resto de la tuberia no cambie.
 
-        La consecuencia manda y la verificabilidad corrige: un numero
-        espectacular que solo afirma el vendedor no puede encabezar la edicion."""
-        blended = 0.7 * self.consequence + 0.3 * self.verifiability
-        return max(1, min(100, round(blended / 5 * 100)))
+        Manda la consecuencia. La verificabilidad entra de forma asimetrica:
+        hunde lo que solo afirma quien lo vende, pero no penaliza a un analisis
+        bueno por venir de un agregador. Ponderarla al 30% mandaba del 90 al 57
+        un post agudo de Hacker News, que es justo lo que no queremos."""
+        base = self.consequence / 5
+        if self.verifiability < 2:
+            base *= 0.5 + 0.25 * self.verifiability
+        base += 0.05 * max(0.0, self.verifiability - 3) / 2
+
+        score = max(1, min(100, round(base * 100)))
+        if self.version >= FLAG_THRESHOLD:
+            score = min(score, VERSION_CAP)
+        if self.event >= FLAG_THRESHOLD:
+            score = min(score, EVENT_CAP)
+        if self.explainer >= FLAG_THRESHOLD:
+            score = min(score, EXPLAINER_CAP)
+        return score
 
     @property
     def subject(self) -> str:
@@ -207,6 +247,9 @@ class TypeSafeDecider:
                     "instructions": "Quien afirma lo que cuenta el articulo y hasta que punto se puede comprobar.",
                     "criteria": VERIFIABILITY_LEVELS,
                 },
+                "version": {"type": "noul", "instructions": VERSION_INSTRUCTIONS},
+                "divulgacion": {"type": "noul", "instructions": EXPLAINER_INSTRUCTIONS},
+                "evento": {"type": "noul", "instructions": EVENT_INSTRUCTIONS},
             }
             try:
                 answers = self.ask(state_of(item), questions)
@@ -215,6 +258,9 @@ class TypeSafeDecider:
                     verifiability=float(answers["verificabilidad"]["score"]),
                     is_ai=float(answers["es_ia"]["noul"]),
                     commercial=float(answers["comercial"]["noul"]),
+                    version=float(answers["version"]["noul"]),
+                    explainer=float(answers["divulgacion"]["noul"]),
+                    event=float(answers["evento"]["noul"]),
                 )
             except Exception as exc:
                 logger.info("Judgement call failed for '%s': %s", item.title[:50], exc)

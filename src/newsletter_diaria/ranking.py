@@ -119,6 +119,56 @@ def parse_preselection(data: dict, items: list[Item], limit: int) -> list[Item]:
     return chosen
 
 
+def judge_to_ranked(items: list[Item], decider: TypeSafeDecider) -> list[RankedItem]:
+    """Juzga todos los candidatos, ya con el texto del articulo delante, y los
+    deja ordenados pero sin prosa. Resumir viene despues y solo para los que
+    sobrevivan a la politica editorial: antes se resumian 58 para publicar 10."""
+    judgements = decider.judge(items)
+    logger.info("Decision model judged %d of %d candidates", len(judgements), len(items))
+    judged = [(item, judgements[item.uid]) for item in items if item.uid in judgements]
+    judged.sort(key=lambda pair: -pair[1].importance)
+    return [
+        RankedItem(
+            item=item,
+            rank=index,
+            importance=judgement.importance,
+            translated_title=None,
+            summary="",
+            why="",
+            takeaway="",
+            discarded=judgement.discarded,
+            discard_reason="material comercial" if judgement.discarded else "",
+            subject=judgement.subject,
+        )
+        for index, (item, judgement) in enumerate(judged, start=1)
+    ]
+
+
+def summarize_selection(selected: list[RankedItem], config: LLMConfig) -> NewsletterDraft:
+    """Anade la prosa a los articulos que ya entraron: titulo traducido, resumen,
+    por que importa. El titular y las tendencias salen de la misma llamada de
+    ranking de siempre, pero sobre diez articulos en vez de sesenta."""
+    if not selected:
+        return NewsletterDraft(headline="", items=[], trends=[])
+
+    provider = build_provider(config)
+    items = [ranked.item for ranked in selected]
+    headline, trends = "Resumen diario", []
+    try:
+        ranking = provider.rank(items)
+        headline = text_value(ranking.get("headline"), "Resumen diario")
+        trends = [trend for trend in (text_value(value) for value in ranking.get("trends", [])) if trend]
+    except Exception as exc:
+        logger.warning("Could not get a headline from the language model (%s); using the default", exc)
+
+    ranked_ids = [(ranked.item, ranked.rank, ranked.importance) for ranked in selected]
+    subjects = {ranked.item.uid: ranked.subject for ranked in selected}
+    summarized = summarize_ranked_items_batch(ranked_ids, provider)
+    summarized = [replace(entry, subject=subjects.get(entry.item.uid, "")) for entry in summarized]
+    summarized.sort(key=lambda entry: (entry.rank, -entry.importance))
+    return NewsletterDraft(headline=headline or "Resumen diario", items=summarized, trends=trends)
+
+
 def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> list[RankedItem]:
     ranked_items = sorted(items, key=lambda item: rank_item(item, sources_by_name), reverse=True)
     return [

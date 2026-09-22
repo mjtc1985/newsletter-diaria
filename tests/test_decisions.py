@@ -14,11 +14,29 @@ def item(uid: str = "u1", body: str = "") -> Item:
 
 
 class JudgementTest(unittest.TestCase):
-    def test_verifiability_pulls_a_vendor_claim_down(self) -> None:
+    def test_low_verifiability_sinks_a_vendor_claim(self) -> None:
         vendor = Judgement(consequence=4.5, verifiability=1.0, is_ai=.9, commercial=.1)
         checked = Judgement(consequence=4.5, verifiability=4.5, is_ai=.9, commercial=.1)
         self.assertLess(vendor.importance, checked.importance)
-        self.assertEqual((vendor.importance, checked.importance), (69, 90))
+
+    def test_middling_verifiability_is_not_punished(self) -> None:
+        """Ponderarla al 30% mandaba del 90 al 57 un analisis agudo de un
+        agregador. Por encima de 2 ya no descuenta nada."""
+        sharp = Judgement(consequence=4.0, verifiability=2.5, is_ai=.9, commercial=.1)
+        primary = Judgement(consequence=4.0, verifiability=4.0, is_ai=.9, commercial=.1)
+        self.assertEqual(sharp.importance, 80)
+        self.assertGreaterEqual(primary.importance, sharp.importance)
+
+    def test_the_negative_flags_cap_the_score(self) -> None:
+        strong = dict(consequence=4.5, verifiability=3.0, is_ai=.9, commercial=.1)
+        self.assertGreater(Judgement(**strong).importance, 40)
+        self.assertLessEqual(Judgement(**strong, version=.8).importance, 20)
+        self.assertLessEqual(Judgement(**strong, event=.8).importance, 20)
+        self.assertLessEqual(Judgement(**strong, explainer=.8).importance, 40)
+
+    def test_a_flag_below_the_threshold_does_not_cap(self) -> None:
+        strong = dict(consequence=4.5, verifiability=3.0, is_ai=.9, commercial=.1)
+        self.assertGreater(Judgement(**strong, version=.59).importance, 20)
 
     def test_importance_stays_inside_the_1_to_100_scale(self) -> None:
         self.assertEqual(Judgement(0, 0, 0, 0).importance, 1)
@@ -49,6 +67,7 @@ class DeciderTest(unittest.TestCase):
         answers = {
             "es_ia": {"noul": 0.8}, "comercial": {"noul": 0.1},
             "consecuencia": {"score": 4.0}, "verificabilidad": {"score": 3.0},
+            "version": {"noul": 0.05}, "divulgacion": {"noul": 0.1}, "evento": {"noul": 0.0},
         }
         with patch.object(decider, "ask", return_value=answers):
             result = decider.judge([item()])
@@ -64,7 +83,8 @@ class DeciderTest(unittest.TestCase):
             if calls["n"] == 1:
                 raise RuntimeError("503")
             return {"es_ia": {"noul": .9}, "comercial": {"noul": .1},
-                    "consecuencia": {"score": 3.0}, "verificabilidad": {"score": 3.0}}
+                    "consecuencia": {"score": 3.0}, "verificabilidad": {"score": 3.0},
+                    "version": {"noul": .0}, "divulgacion": {"noul": .0}, "evento": {"noul": .0}}
 
         with patch.object(decider, "ask", side_effect=flaky):
             result = decider.judge([item("u1"), item("u2")])
@@ -145,3 +165,79 @@ class PreselectionFallbackTest(unittest.TestCase):
         with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
             chosen = preselect_candidates(self._items(), 10, self._config(), decider)
         self.assertEqual(len(chosen), 10)
+
+
+class InvertedFunnelTest(unittest.TestCase):
+    """Con un juez barato se lee y se juzga todo, y solo se resume lo que entra."""
+
+    def _items(self, n: int = 5):
+        return [Item(uid=f"u{i}", source=f"S{i}", title=f"T{i}", link=f"https://x/{i}",
+                     published_at=datetime.now(timezone.utc), summary="s", body="cuerpo") for i in range(1, n + 1)]
+
+    def test_orders_by_importance_and_marks_the_commercial_ones(self) -> None:
+        from newsletter_diaria.ranking import judge_to_ranked
+
+        decider = MagicMock()
+        decider.judge.return_value = {
+            "u1": Judgement(2.0, 3.0, .9, .1),
+            "u2": Judgement(4.5, 4.0, .9, .1),
+            "u3": Judgement(3.0, 3.0, .2, .9),
+        }
+        ranked = judge_to_ranked(self._items(3), decider)
+        self.assertEqual([r.item.uid for r in ranked], ["u2", "u3", "u1"])
+        self.assertEqual([r.rank for r in ranked], [1, 2, 3])
+        self.assertTrue(ranked[1].discarded)
+        self.assertEqual(ranked[1].subject, "otro")
+        self.assertEqual([r.summary for r in ranked], ["", "", ""])
+
+    def test_items_the_model_could_not_judge_are_left_out(self) -> None:
+        from newsletter_diaria.ranking import judge_to_ranked
+
+        decider = MagicMock()
+        decider.judge.return_value = {"u2": Judgement(3.0, 3.0, .9, .1)}
+        self.assertEqual([r.item.uid for r in judge_to_ranked(self._items(3), decider)], ["u2"])
+
+    def test_only_the_selection_is_summarized(self) -> None:
+        from pathlib import Path
+
+        from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig, RankedItem
+        from newsletter_diaria.ranking import summarize_selection
+
+        config = LLMConfig(backend="openai-compatible",
+                           opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+                           openai_compatible=OpenAICompatibleConfig(base_url="http://x", api_key="k", api_key_env="K", model="m", json_mode=True))
+        selected = [RankedItem(item=i, rank=n, importance=90 - n, translated_title=None,
+                               summary="", why="", takeaway="", subject="ia")
+                    for n, i in enumerate(self._items(2), start=1)]
+        provider = MagicMock()
+        provider.rank.return_value = {"headline": "Titular del dia", "trends": ["una", None]}
+        provider.summarize_batch.return_value = {"items": [
+            {"uid": "u1", "title": "T1 es", "summary": "S1", "why": "W1"},
+            {"uid": "u2", "title": "T2 es", "summary": "S2", "why": "W2"},
+        ]}
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            draft = summarize_selection(selected, config)
+        self.assertEqual(draft.headline, "Titular del dia")
+        self.assertEqual(draft.trends, ["una"])
+        self.assertEqual(len(provider.rank.call_args[0][0]), 2)
+        self.assertEqual([r.translated_title for r in draft.items], ["T1 es", "T2 es"])
+        self.assertEqual([r.subject for r in draft.items], ["ia", "ia"])
+
+    def test_a_failing_headline_call_does_not_lose_the_edition(self) -> None:
+        from pathlib import Path
+
+        from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig, RankedItem
+        from newsletter_diaria.ranking import summarize_selection
+
+        config = LLMConfig(backend="openai-compatible",
+                           opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+                           openai_compatible=OpenAICompatibleConfig(base_url="http://x", api_key="k", api_key_env="K", model="m", json_mode=True))
+        selected = [RankedItem(item=self._items(1)[0], rank=1, importance=80, translated_title=None,
+                               summary="", why="", takeaway="", subject="ia")]
+        provider = MagicMock()
+        provider.rank.side_effect = RuntimeError("503")
+        provider.summarize_batch.return_value = {"items": [{"uid": "u1", "title": "T", "summary": "S", "why": "W"}]}
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            draft = summarize_selection(selected, config)
+        self.assertEqual(draft.headline, "Resumen diario")
+        self.assertEqual(len(draft.items), 1)

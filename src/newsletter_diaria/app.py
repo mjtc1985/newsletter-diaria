@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from dataclasses import replace
 
 from newsletter_diaria.article import enrich_items
 from newsletter_diaria.cache import load_draft_cache, write_draft_cache
@@ -10,7 +11,12 @@ from newsletter_diaria.editorial import log_rejections, select_items
 from newsletter_diaria.emailing import send_newsletter_email, test_email_config
 from newsletter_diaria.ingest import cap_candidates, collect_items, dedupe, filter_recent
 from newsletter_diaria.models import AppConfig, NewsletterDraft
-from newsletter_diaria.ranking import build_newsletter, preselect_candidates
+from newsletter_diaria.ranking import (
+    build_newsletter,
+    judge_to_ranked,
+    preselect_candidates,
+    summarize_selection,
+)
 from newsletter_diaria.renderers import render_console, write_markdown
 from newsletter_diaria.sources import load_sources, sources_by_name
 from newsletter_diaria.state import filter_unseen, load_seen, record_seen
@@ -54,35 +60,55 @@ def run(config: AppConfig) -> int:
         return 0
 
     decider = build_decider() if config.use_decision_model and config.ai_mode != "off" else None
+
     if decider:
-        logger.info("Decision model active: preselection, scoring and subject come from TypeSafe")
+        # Con un juez barato y rapido el embudo se da la vuelta: se lee todo, se
+        # juzga todo con el texto delante, y solo se resume lo que sobrevive.
+        logger.info("Decision model active: every candidate is read and judged in full")
+        if config.fetch_bodies:
+            items = enrich_items(items)
+        judged = judge_to_ranked(items, decider)
+        if not judged:
+            logger.warning("Decision model judged nothing; falling back to the language model")
+            decider = None
 
-    if config.ai_mode == "off":
-        items = cap_candidates(items, config.ai_candidates)
+    if decider:
+        # La exigencia de 'why' se salta aqui: la escribia el resumidor, que
+        # ahora corre despues de seleccionar, y su trabajo lo hacen el umbral y
+        # las preguntas de descarte.
+        policy = replace(config.editorial, require_why=False)
+        selection = select_items(judged, policy, source_index)
+        log_rejections(selection.rejected)
+        logger.info("Editorial policy kept %d of %d item(s)", len(selection.items), len(judged))
+        try:
+            draft = summarize_selection(selection.items, config.llm)
+        except RuntimeError as exc:
+            print(f"(x) {exc}", file=sys.stderr)
+            return 1
     else:
-        items = preselect_candidates(items, config.ai_candidates, config.llm, decider)
-    logger.info("Ranking candidates: %d", len(items))
+        if config.ai_mode == "off":
+            items = cap_candidates(items, config.ai_candidates)
+        else:
+            items = preselect_candidates(items, config.ai_candidates, config.llm)
+        logger.info("Ranking candidates: %d", len(items))
+        if config.fetch_bodies:
+            items = enrich_items(items)
 
-    # El cuerpo se descarga despues del recorte, para bajar 30 articulos y no 90,
-    # y antes del ranking, porque el ranker tambien decide con este texto.
-    if config.fetch_bodies:
-        items = enrich_items(items)
+        try:
+            draft = build_newsletter(items, config.ai_mode, config.llm, source_index)
+        except RuntimeError as exc:
+            print(f"(x) {exc}", file=sys.stderr)
+            return 1
 
-    try:
-        draft = build_newsletter(items, config.ai_mode, config.llm, source_index, decider)
-    except RuntimeError as exc:
-        print(f"(x) {exc}", file=sys.stderr)
-        return 1
-
-    selection = select_items(
-        draft.items,
-        config.editorial,
-        source_index,
-        apply_importance_floor=not draft.heuristic_importance,
-    )
-    log_rejections(selection.rejected)
-    logger.info("Editorial policy kept %d of %d item(s)", len(selection.items), len(draft.items))
-    draft = NewsletterDraft(headline=draft.headline, items=selection.items, trends=draft.trends)
+        selection = select_items(
+            draft.items,
+            config.editorial,
+            source_index,
+            apply_importance_floor=not draft.heuristic_importance,
+        )
+        log_rejections(selection.rejected)
+        logger.info("Editorial policy kept %d of %d item(s)", len(selection.items), len(draft.items))
+        draft = NewsletterDraft(headline=draft.headline, items=selection.items, trends=draft.trends)
 
     if not draft.items:
         logger.info("Generated draft contains no items. Skipping email dispatch.")
