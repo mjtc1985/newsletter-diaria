@@ -114,6 +114,7 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         ranking = provider.rank(items)
         ranked_ids = parse_ranking_result(ranking, items, sources_by_name)
         subjects = parse_subjects(ranking)
+        kinds = parse_kinds(ranking)
         logger.info("LLM backend returned %d ranked items", len(ranked_ids))
         headline = text_value(ranking.get("headline"), "Resumen diario") if isinstance(ranking, dict) else "Resumen diario"
         trends = [text_value(trend) for trend in (ranking.get("trends", []) if isinstance(ranking, dict) else [])]
@@ -125,12 +126,20 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         headline = "Resumen diario de tecnología"
         trends = []
         subjects = {}
+        kinds = {}
         heuristic_importance = True
 
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
     # El tema lo decide el ranker, que es quien ve la lista completa; se pega
     # despues de resumir para no arrastrarlo por toda la cadena de lotes.
-    summarized = [replace(entry, subject=subjects.get(entry.item.uid, "")) for entry in summarized]
+    summarized = [
+        replace(
+            entry,
+            subject=subjects.get(entry.item.uid, ""),
+            bucket=bucket_for(subjects.get(entry.item.uid, "ia"), kinds.get(entry.item.uid, "noticia")),
+        )
+        for entry in summarized
+    ]
     summarized.sort(key=lambda item: (item.rank, -item.importance))
     logger.info("Summaries completed")
     return NewsletterDraft(
@@ -252,6 +261,30 @@ def parse_summary_batch_result(data: dict, ranked_ids: list[tuple[Item, int, int
             )
         )
     return result
+
+
+def bucket_for(subject: str, kind: str) -> int:
+    """0 lo que pasa o alguien construyo, 1 comentario, 2 ajeno a la IA.
+
+    Solo un "comentario" explicito baja de cubo: si el ranker no clasifico, o
+    devolvio algo que no entendemos, el articulo no debe perder puesto por un
+    fallo de parseo."""
+    if subject != "ia":
+        return 2
+    return 1 if kind == "comentario" else 0
+
+
+def parse_kinds(data: dict) -> dict[str, str]:
+    """uid -> noticia, experiencia o comentario, tal como lo clasifico el ranker."""
+    kinds: dict[str, str] = {}
+    for raw in (data.get("items", []) if isinstance(data, dict) else []):
+        if not isinstance(raw, dict):
+            continue
+        uid = text_value(raw.get("uid"))
+        kind = text_value(raw.get("tipo")).lower()
+        if uid and kind in {"noticia", "experiencia", "comentario"}:
+            kinds[uid] = kind
+    return kinds
 
 
 def parse_subjects(data: dict) -> dict[str, str]:

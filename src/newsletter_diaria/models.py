@@ -50,6 +50,9 @@ class RankedItem:
     # "ia" u "otro", segun el ranker. El boletin va de IA; lo que no lo es tiene
     # que ser muy notorio y ademas tiene cuota propia.
     subject: str = ""
+    # 0 lo que pasa o se construyo, 1 comentario, 2 ajeno a la IA.
+    # Ordena la edicion por encima de la nota.
+    bucket: int = 0
 
 
 @dataclass(frozen=True)

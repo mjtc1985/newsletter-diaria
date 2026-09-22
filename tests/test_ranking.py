@@ -454,3 +454,33 @@ class PreselectionTest(unittest.TestCase):
         with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
             self.assertEqual(len(preselect_candidates(items, 60, self._config())), 10)
         provider.preselect.assert_not_called()
+
+
+class KindTest(unittest.TestCase):
+    def test_parse_kinds_reads_the_three_values(self) -> None:
+        from newsletter_diaria.ranking import parse_kinds
+
+        data = {"items": [{"uid": "a", "tipo": "noticia"}, {"uid": "b", "tipo": "EXPERIENCIA"},
+                          {"uid": "c", "tipo": "comentario"}, {"uid": "d", "tipo": "vaya"}, {"uid": "e"}]}
+        self.assertEqual(parse_kinds(data), {"a": "noticia", "b": "experiencia", "c": "comentario"})
+
+    def test_buckets_put_first_hand_first_then_commentary_then_non_ai(self) -> None:
+        from newsletter_diaria.ranking import bucket_for
+
+        self.assertEqual(bucket_for("ia", "noticia"), 0)
+        self.assertEqual(bucket_for("ia", "experiencia"), 0)
+        self.assertEqual(bucket_for("ia", "comentario"), 1)
+        self.assertEqual(bucket_for("otro", "noticia"), 2)
+
+    def test_an_unclassified_item_is_treated_as_news(self) -> None:
+        from newsletter_diaria.ranking import bucket_for
+
+        self.assertEqual(bucket_for("ia", ""), 0)
+
+    def test_the_prompt_carries_the_case_study_rule(self) -> None:
+        from newsletter_diaria.llm import RANKING_RULES
+
+        self.assertIn("experiencia", RANKING_RULES)
+        self.assertIn("cómo montamos", RANKING_RULES)
+        self.assertIn("importance 35 o menos", RANKING_RULES)
+        self.assertIn("45 o menos", RANKING_RULES)

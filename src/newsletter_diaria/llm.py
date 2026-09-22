@@ -20,10 +20,13 @@ logger = logging.getLogger("newsletter_diaria")
 HTTP_RETRY_STATUS = {429, 500, 502, 503, 504}
 HTTP_MAX_ATTEMPTS = 3
 HTTP_RETRY_CAP_SECONDS = 35.0
+# Repartida entre familias a proposito: el dia que se saturo flash-lite, las
+# cuatro de la cadena eran variantes suyas y se cayeron todas a la vez. Medido:
+# 3.1-flash-lite responde en 5 s, 3.5-flash en 18 s, flash-lite-latest en 36 s.
 FALLBACK_MODELS = [
-    "gemini-3.1-flash-lite",
-    "gemini-flash-latest",
-    "gemini-3-flash-preview",
+    "gemini-3.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.6-flash",
 ]
 
 
@@ -44,6 +47,21 @@ RANKING_RULES = (
     "PASO 2, puntúa. El análisis, el ensayo y la opinión SOBRE IA son contenido central\n"
     "del boletín, no relleno: un artículo así, bien argumentado, puede ser el más\n"
     "importante del día aunque no anuncie nada.\n"
+    "PASO 2b, clasifica el 'tipo' de cada artículo:\n"
+    "- \"noticia\" si cuenta algo que ha pasado: un lanzamiento, un incidente, una medición,\n"
+    "  una decisión tomada, una vulnerabilidad, un cambio con fecha.\n"
+    "- \"experiencia\" si cuenta cómo alguien construyó, desplegó u operó algo concreto y real:\n"
+    "  nombra el sistema, la empresa o el caso, y da decisiones técnicas, cifras o los problemas\n"
+    "  que se encontró. Un 'cómo montamos un sistema RAG en tal empresa' o un post mortem de una\n"
+    "  caída son experiencia.\n"
+    "- \"comentario\" si es un ensayo, una reflexión sobre el estado de la IA, una opinión, una\n"
+    "  recopilación de fragmentos o enlaces, o un tutorial genérico sin un caso real detrás.\n"
+    "Un artículo de tipo \"comentario\" va a importance 35 o menos aunque esté bien escrito y sea\n"
+    "de alguien con criterio: de ese género solo queremos el 'cómo montamos esto', no la opinión\n"
+    "sobre el estado de la IA.\n"
+    "Un artículo que presenta una herramienta, una librería o un framework empaquetado, en vez de\n"
+    "un hallazgo o un resultado medido, va a importance 45 o menos. Analizar la herramienta de\n"
+    "otro no cuenta como presentarla.\n"
     "PASO 3, y esto aplica SOLO a los artículos con tema \"otro\": entran únicamente si\n"
     "son MUY notorios, es decir si afectan de golpe a mucha gente que desarrolla\n"
     "software: una vulnerabilidad grave y ya explotada en algo de uso masivo, la caída\n"
@@ -103,7 +121,8 @@ def build_ranking_prompt(payload: dict) -> str:
         "Responde en español y SOLO con JSON válido.\n"
         + RANKING_RULES
         + "Devuelve exactamente: {\"headline\":string,\"trends\":[string],"
-        "\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number,\"tema\":\"ia\"|\"otro\"}]}.\n"
+        "\"items\":[{\"uid\":string,\"rank\":number,\"importance\":number,\"tema\":\"ia\"|\"otro\","
+        "\"tipo\":\"noticia\"|\"experiencia\"|\"comentario\"}]}.\n"
         f"Datos: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}"
     )
 

@@ -52,6 +52,19 @@ First classify each article's `tema`:
 Analysis, essays and opinion about AI are core content, not filler: a well argued
 piece can be the most important item of the day even when it announces nothing.
 
+Also classify each article's `tipo`:
+- "noticia" when it reports something that happened;
+- "experiencia" when it tells how someone built, deployed or ran something concrete and real,
+  naming the system, the company or the incident, with technical decisions, figures or the
+  problems they hit;
+- "comentario" for an essay, a reflection on the state of AI, an opinion, a collection of
+  fragments, or a generic tutorial with no real case behind it.
+
+A "comentario" gets importance 35 or less however well written and whoever signs it: what is
+wanted from that genre is the "how we built this", not the opinion on the state of AI. An
+article presenting a packaged tool, library or framework rather than a finding gets 45 or less;
+analysing someone else's tool does not count as presenting one.
+
 Only for articles with `tema: "otro"`: they enter only when very notable, meaning
 they affect a lot of people building software at once — a severe, already exploited
 vulnerability in something widely used, an outage half the sector depends on, a
@@ -74,7 +87,7 @@ Return exactly:
   "headline": "string",
   "trends": ["string"],
   "items": [
-    {"uid":"string","rank":1,"importance":100}
+    {"uid":"string","rank":1,"importance":100,"tema":"ia","tipo":"noticia"}
   ]
 }
 
