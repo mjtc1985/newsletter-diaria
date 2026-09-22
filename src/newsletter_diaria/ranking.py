@@ -139,6 +139,7 @@ def judge_to_ranked(items: list[Item], decider: TypeSafeDecider) -> list[RankedI
             discarded=judgement.discarded,
             discard_reason="material comercial" if judgement.discarded else "",
             subject=judgement.subject,
+            bucket=judgement.bucket,
         )
         for index, (item, judgement) in enumerate(judged, start=1)
     ]
@@ -163,8 +164,12 @@ def summarize_selection(selected: list[RankedItem], config: LLMConfig) -> Newsle
 
     ranked_ids = [(ranked.item, ranked.rank, ranked.importance) for ranked in selected]
     subjects = {ranked.item.uid: ranked.subject for ranked in selected}
+    buckets = {ranked.item.uid: ranked.bucket for ranked in selected}
     summarized = summarize_ranked_items_batch(ranked_ids, provider)
-    summarized = [replace(entry, subject=subjects.get(entry.item.uid, "")) for entry in summarized]
+    summarized = [
+        replace(entry, subject=subjects.get(entry.item.uid, ""), bucket=buckets.get(entry.item.uid, 0))
+        for entry in summarized
+    ]
     summarized.sort(key=lambda entry: (entry.rank, -entry.importance))
     return NewsletterDraft(headline=headline or "Resumen diario", items=summarized, trends=trends)
 

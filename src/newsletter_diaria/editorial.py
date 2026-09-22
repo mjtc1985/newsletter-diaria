@@ -85,6 +85,9 @@ def select_items(
         rejected = [(ranked, discard_label(ranked)) for ranked in ordered if ranked.discarded]
         rejected.extend(quota_rejected)
 
+    # El orden final no es solo la nota: primero lo que pasa, luego el analisis,
+    # y lo ajeno a la IA al final. Son decisiones de posicion, no de inclusion.
+    kept.sort(key=lambda ranked: (ranked.bucket, -ranked.importance))
     renumbered = [replace(ranked, rank=index) for index, ranked in enumerate(kept, start=1)]
     return SelectionResult(items=renumbered, rejected=rejected)
 

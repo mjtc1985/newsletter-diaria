@@ -68,6 +68,7 @@ class DeciderTest(unittest.TestCase):
             "es_ia": {"noul": 0.8}, "comercial": {"noul": 0.1},
             "consecuencia": {"score": 4.0}, "verificabilidad": {"score": 3.0},
             "version": {"noul": 0.05}, "divulgacion": {"noul": 0.1}, "evento": {"noul": 0.0},
+            "noticia": {"noul": 0.9}, "herramienta": {"noul": 0.1},
         }
         with patch.object(decider, "ask", return_value=answers):
             result = decider.judge([item()])
@@ -84,7 +85,8 @@ class DeciderTest(unittest.TestCase):
                 raise RuntimeError("503")
             return {"es_ia": {"noul": .9}, "comercial": {"noul": .1},
                     "consecuencia": {"score": 3.0}, "verificabilidad": {"score": 3.0},
-                    "version": {"noul": .0}, "divulgacion": {"noul": .0}, "evento": {"noul": .0}}
+                    "version": {"noul": .0}, "divulgacion": {"noul": .0}, "evento": {"noul": .0},
+                    "noticia": {"noul": .9}, "herramienta": {"noul": .0}}
 
         with patch.object(decider, "ask", side_effect=flaky):
             result = decider.judge([item("u1"), item("u2")])
@@ -255,3 +257,26 @@ class SubjectInstructionTest(unittest.TestCase):
         self.assertIn("cuello de botella", SUBJECT_INSTRUCTIONS)
         self.assertIn("si quitas la IA de la historia", SUBJECT_INSTRUCTIONS)
         self.assertIn("orquestador", SUBJECT_INSTRUCTIONS)
+
+
+class CalibrationTest(unittest.TestCase):
+    """Las cuatro respuestas de calibracion, fijadas."""
+
+    def test_a_packaged_tool_cannot_lead(self) -> None:
+        tool = Judgement(4.5, 4.5, .9, .1, is_news=.5, is_tool=.9)
+        result = Judgement(4.5, 4.5, .9, .1, is_news=.9, is_tool=.1)
+        self.assertLessEqual(tool.importance, 45)
+        self.assertGreater(result.importance, 45)
+
+    def test_buckets_put_news_first_then_analysis_then_non_ai(self) -> None:
+        self.assertEqual(Judgement(4, 3, is_ai=.9, commercial=.1, is_news=.9).bucket, 0)
+        self.assertEqual(Judgement(4, 3, is_ai=.9, commercial=.1, is_news=.2).bucket, 1)
+        self.assertEqual(Judgement(5, 5, is_ai=.2, commercial=.1, is_news=.9).bucket, 2)
+
+    def test_the_six_signals_reached_the_consequence_anchors(self) -> None:
+        from newsletter_diaria.decisions import CONSEQUENCE_LEVELS
+
+        anchors = " ".join(CONSEQUENCE_LEVELS).lower()
+        for signal in ("ha medido algo", "verifica o desmiente", "primera vez",
+                       "lanza un modelo", "cambia una decision"):
+            self.assertIn(signal, anchors, signal)

@@ -37,8 +37,8 @@ CONSEQUENCE_LEVELS = [
     "Nada: marketing, hoja de ruta sin fecha, evento, inscripcion o refrito",
     "Iteracion: version N+1 algo mejor, 'ya disponible en X', una integracion",
     "Contexto util que no cambia ninguna decision",
-    "Cambia como se entiende o se hace algo, con evidencia: analisis que explica un mecanismo, post mortem con causa raiz, investigacion replicable con resultado no obvio",
-    "Cambia las opciones disponibles: capacidad que antes no existia, cambio de licencia, una herramienta sustituye a otra, lanzamiento que cambia como se construye",
+    "Cambia como se entiende o se hace algo, con evidencia: alguien ha medido algo y da la cifra, un analisis explica un mecanismo, un post mortem da la causa raiz, o hay investigacion replicable con un resultado no obvio",
+    "Cambia las opciones disponibles, o alguien verifica o desmiente lo que otro afirmo, o es la primera vez que ocurre algo, o un laboratorio lanza un modelo aunque no te suene el nombre, o una empresa cambia una decision tecnica y explica por que",
     "Obliga a actuar ya: vulnerabilidad grave ya explotada, cambio de precios de una API, fin de un servicio, ruptura de compatibilidad con fecha",
 ]
 VERIFIABILITY_LEVELS = [
@@ -83,6 +83,16 @@ EXPLAINER_INSTRUCTIONS = (
     "ensena nada no obvio a quien ya trabaja en esto. Un analisis con un hallazgo propio, un post "
     "mortem o una investigacion con resultados NO son divulgacion estandar."
 )
+NEWS_INSTRUCTIONS = (
+    "El articulo cuenta algo que ha pasado: un lanzamiento, un incidente, una medicion, una "
+    "decision tomada, una vulnerabilidad, un cambio con fecha. Un analisis, un ensayo, una "
+    "opinion, un tutorial o una guia NO son noticia aunque sean excelentes."
+)
+TOOL_INSTRUCTIONS = (
+    "Lo que presenta el articulo es una herramienta, una libreria o un framework empaquetado, en "
+    "vez de un hallazgo, un resultado medido o algo que ha ocurrido. Un paper que publica una "
+    "libreria es herramienta; un paper que publica un resultado no lo es."
+)
 EVENT_INSTRUCTIONS = (
     "Es un evento, un congreso, una inscripcion, una ronda de financiacion o una contratacion."
 )
@@ -103,6 +113,8 @@ WORTH_READING_INSTRUCTIONS = (
 VERSION_CAP = 20
 EVENT_CAP = 20
 EXPLAINER_CAP = 40
+# Una libreria empaquetada no encabeza: "solo si es un resultado".
+TOOL_CAP = 45
 FLAG_THRESHOLD = 0.6
 
 
@@ -117,6 +129,8 @@ class Judgement:
     version: float = 0.0    # probabilidad 0 a 1
     explainer: float = 0.0
     event: float = 0.0
+    is_news: float = 1.0    # cuenta algo que ha pasado, frente a analisis u opinion
+    is_tool: float = 0.0    # presenta una herramienta, no un resultado
 
     @property
     def importance(self) -> int:
@@ -138,7 +152,19 @@ class Judgement:
             score = min(score, EVENT_CAP)
         if self.explainer >= FLAG_THRESHOLD:
             score = min(score, EXPLAINER_CAP)
+        if self.is_tool >= FLAG_THRESHOLD:
+            score = min(score, TOOL_CAP)
         return score
+
+    @property
+    def bucket(self) -> int:
+        """Orden dentro de la edicion, por encima de la nota.
+
+        Primero lo que pasa, luego lo que se opina, y lo ajeno a la IA al final:
+        entra, pero no encabeza."""
+        if self.subject != "ia":
+            return 2
+        return 0 if self.is_news >= 0.5 else 1
 
     @property
     def subject(self) -> str:
@@ -258,6 +284,8 @@ class TypeSafeDecider:
                 "version": {"type": "noul", "instructions": VERSION_INSTRUCTIONS},
                 "divulgacion": {"type": "noul", "instructions": EXPLAINER_INSTRUCTIONS},
                 "evento": {"type": "noul", "instructions": EVENT_INSTRUCTIONS},
+                "noticia": {"type": "noul", "instructions": NEWS_INSTRUCTIONS},
+                "herramienta": {"type": "noul", "instructions": TOOL_INSTRUCTIONS},
             }
             try:
                 answers = self.ask(state_of(item), questions)
@@ -269,6 +297,8 @@ class TypeSafeDecider:
                     version=float(answers["version"]["noul"]),
                     explainer=float(answers["divulgacion"]["noul"]),
                     event=float(answers["evento"]["noul"]),
+                    is_news=float(answers["noticia"]["noul"]),
+                    is_tool=float(answers["herramienta"]["noul"]),
                 )
             except Exception as exc:
                 logger.info("Judgement call failed for '%s': %s", item.title[:50], exc)

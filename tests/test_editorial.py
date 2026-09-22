@@ -345,3 +345,38 @@ class ArxivCapTest(unittest.TestCase):
         candidates = [ranked("arXiv cs.SE", n, uid=f"a{n}") for n in range(1, 4)] + [ranked("Dan Luu", 4)]
         result = select_items(candidates, policy, sources)
         self.assertEqual([i.item.source for i in result.items], ["arXiv cs.SE", "Dan Luu"])
+
+
+class BucketOrderTest(unittest.TestCase):
+    """Dos de las cuatro respuestas de calibracion piden posicion, no inclusion:
+    lo ajeno a la IA entra pero no encabeza, y el analisis va por debajo de lo
+    que pasa. La nota sola no sabe expresar eso."""
+
+    def _ranked(self, uid: str, source: str, importance: int, bucket: int):
+        from datetime import datetime, timezone
+
+        from newsletter_diaria.models import Item, RankedItem
+
+        return RankedItem(
+            item=Item(uid=uid, source=source, title=uid, link=f"https://x/{uid}",
+                      published_at=datetime.now(timezone.utc), summary="s"),
+            rank=1, importance=importance, translated_title=uid, summary="r",
+            why="motivo", takeaway="", subject="otro" if bucket == 2 else "ia", bucket=bucket)
+
+    def test_a_non_ai_item_never_leads_however_high_it_scores(self) -> None:
+        candidates = [
+            self._ranked("aws", "InfoQ", 100, 2),
+            self._ranked("noticia", "Ars Technica", 60, 0),
+            self._ranked("ensayo", "Martin Fowler", 80, 1),
+        ]
+        result = select_items(candidates, POLICY, SOURCES)
+        self.assertEqual([r.item.uid for r in result.items], ["noticia", "ensayo", "aws"])
+        self.assertEqual([r.rank for r in result.items], [1, 2, 3])
+
+    def test_within_a_bucket_the_score_still_decides(self) -> None:
+        candidates = [
+            self._ranked("floja", "Ars Technica", 50, 0),
+            self._ranked("fuerte", "InfoQ", 90, 0),
+        ]
+        result = select_items(candidates, POLICY, SOURCES)
+        self.assertEqual([r.item.uid for r in result.items], ["fuerte", "floja"])
