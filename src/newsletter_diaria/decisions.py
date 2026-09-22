@@ -88,6 +88,14 @@ NEWS_INSTRUCTIONS = (
     "decision tomada, una vulnerabilidad, un cambio con fecha. Un analisis, un ensayo, una "
     "opinion, un tutorial o una guia NO son noticia aunque sean excelentes."
 )
+EXPERIENCE_INSTRUCTIONS = (
+    "El articulo cuenta como alguien construyo, desplego u opero algo concreto y real: nombra el "
+    "sistema, la empresa o el caso, y da decisiones tecnicas, cifras o problemas que se encontro "
+    "por el camino. Vale un 'como montamos un sistema RAG en tal empresa', un post mortem de una "
+    "caida, o una migracion contada con sus tropiezos.\n"
+    "NO lo es un ensayo general, una reflexion sobre el estado de la IA, una recopilacion de "
+    "fragmentos o enlaces, una opinion, ni un tutorial generico que no cuenta un caso real."
+)
 TOOL_INSTRUCTIONS = (
     "Lo que presenta el articulo es una herramienta, una libreria o un framework empaquetado, en "
     "vez de un hallazgo, un resultado medido o algo que ha ocurrido. Un paper que publica una "
@@ -115,6 +123,9 @@ EVENT_CAP = 20
 EXPLAINER_CAP = 40
 # Una libreria empaquetada no encabeza: "solo si es un resultado".
 TOOL_CAP = 45
+# Comentario general sin caso concreto detras. Por debajo del umbral de 40, asi
+# que solo sale si la edicion se quedaria corta sin el.
+ESSAY_CAP = 35
 FLAG_THRESHOLD = 0.6
 
 
@@ -131,6 +142,7 @@ class Judgement:
     event: float = 0.0
     is_news: float = 1.0    # cuenta algo que ha pasado, frente a analisis u opinion
     is_tool: float = 0.0    # presenta una herramienta, no un resultado
+    experience: float = 0.0  # cuenta un caso real construido, con decisiones y cifras
 
     @property
     def importance(self) -> int:
@@ -154,7 +166,17 @@ class Judgement:
             score = min(score, EXPLAINER_CAP)
         if self.is_tool >= FLAG_THRESHOLD:
             score = min(score, TOOL_CAP)
+        # Un ensayo o una reflexion sin un caso concreto detras no llega al
+        # umbral: lo que se quiere del genero es el "como montamos esto", no la
+        # opinion sobre el estado de la IA.
+        if not self.first_hand:
+            score = min(score, ESSAY_CAP)
         return score
+
+    @property
+    def first_hand(self) -> bool:
+        """Cuenta algo que paso, o como alguien construyo algo real."""
+        return self.is_news >= 0.5 or self.experience >= 0.5
 
     @property
     def bucket(self) -> int:
@@ -164,7 +186,7 @@ class Judgement:
         entra, pero no encabeza."""
         if self.subject != "ia":
             return 2
-        return 0 if self.is_news >= 0.5 else 1
+        return 0 if self.first_hand else 1
 
     @property
     def subject(self) -> str:
@@ -286,6 +308,7 @@ class TypeSafeDecider:
                 "evento": {"type": "noul", "instructions": EVENT_INSTRUCTIONS},
                 "noticia": {"type": "noul", "instructions": NEWS_INSTRUCTIONS},
                 "herramienta": {"type": "noul", "instructions": TOOL_INSTRUCTIONS},
+                "experiencia": {"type": "noul", "instructions": EXPERIENCE_INSTRUCTIONS},
             }
             try:
                 answers = self.ask(state_of(item), questions)
@@ -299,6 +322,7 @@ class TypeSafeDecider:
                     event=float(answers["evento"]["noul"]),
                     is_news=float(answers["noticia"]["noul"]),
                     is_tool=float(answers["herramienta"]["noul"]),
+                    experience=float(answers["experiencia"]["noul"]),
                 )
             except Exception as exc:
                 logger.info("Judgement call failed for '%s': %s", item.title[:50], exc)

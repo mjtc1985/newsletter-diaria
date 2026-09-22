@@ -68,7 +68,7 @@ class DeciderTest(unittest.TestCase):
             "es_ia": {"noul": 0.8}, "comercial": {"noul": 0.1},
             "consecuencia": {"score": 4.0}, "verificabilidad": {"score": 3.0},
             "version": {"noul": 0.05}, "divulgacion": {"noul": 0.1}, "evento": {"noul": 0.0},
-            "noticia": {"noul": 0.9}, "herramienta": {"noul": 0.1},
+            "noticia": {"noul": 0.9}, "herramienta": {"noul": 0.1}, "experiencia": {"noul": 0.2},
         }
         with patch.object(decider, "ask", return_value=answers):
             result = decider.judge([item()])
@@ -86,7 +86,7 @@ class DeciderTest(unittest.TestCase):
             return {"es_ia": {"noul": .9}, "comercial": {"noul": .1},
                     "consecuencia": {"score": 3.0}, "verificabilidad": {"score": 3.0},
                     "version": {"noul": .0}, "divulgacion": {"noul": .0}, "evento": {"noul": .0},
-                    "noticia": {"noul": .9}, "herramienta": {"noul": .0}}
+                    "noticia": {"noul": .9}, "herramienta": {"noul": .0}, "experiencia": {"noul": .0}}
 
         with patch.object(decider, "ask", side_effect=flaky):
             result = decider.judge([item("u1"), item("u2")])
@@ -268,10 +268,20 @@ class CalibrationTest(unittest.TestCase):
         self.assertLessEqual(tool.importance, 45)
         self.assertGreater(result.importance, 45)
 
-    def test_buckets_put_news_first_then_analysis_then_non_ai(self) -> None:
+    def test_buckets_put_first_hand_first_then_commentary_then_non_ai(self) -> None:
         self.assertEqual(Judgement(4, 3, is_ai=.9, commercial=.1, is_news=.9).bucket, 0)
         self.assertEqual(Judgement(4, 3, is_ai=.9, commercial=.1, is_news=.2).bucket, 1)
         self.assertEqual(Judgement(5, 5, is_ai=.2, commercial=.1, is_news=.9).bucket, 2)
+
+    def test_a_real_case_study_counts_as_first_hand(self) -> None:
+        """'Como montamos un sistema RAG en Bayer' no es noticia, pero es lo que
+        se quiere del genero; 'Fragmentos del 16 de septiembre' no."""
+        bayer = Judgement(4.0, 3.5, is_ai=.9, commercial=.1, is_news=.2, experience=.9)
+        fowler = Judgement(4.0, 3.5, is_ai=.9, commercial=.1, is_news=.1, experience=.1)
+        self.assertEqual(bayer.bucket, 0)
+        self.assertEqual(fowler.bucket, 1)
+        self.assertGreater(bayer.importance, 40)
+        self.assertLessEqual(fowler.importance, 35)
 
     def test_the_six_signals_reached_the_consequence_anchors(self) -> None:
         from newsletter_diaria.decisions import CONSEQUENCE_LEVELS
