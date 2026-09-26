@@ -22,6 +22,7 @@ PYTHONPATH=src python -m newsletter_diaria.main
 ## IA / Backend de Producción y Agentes
 - **Producción (Raspberry Pi)**: Ejecuta con `--llm-backend openai-compatible`:
   - Apunta al **Home AI Core Gateway**: `NEWSLETTER_LLM_BASE_URL=http://localhost:5480/v1` (enrutado a OpenRouter).
+  - El gateway exige clave: `NEWSLETTER_LLM_API_KEY` en `.smtp.env` es la `GATEWAY_API_KEY` de la Pi (llavero, servicio `raspberry/home-assistant-stack`), que se manda como `Authorization: Bearer`.
   - Se identifica en OpenRouter con `HTTP-Referer: https://newsletter.psicologiaarena.es` y `X-Title: Newsletter Diaria` (`llm.py`); el gateway reenvía ambas. OpenRouter agrupa las apps por el origen del Referer, así que no lo cambies a un dominio compartido.
   - Modelo por defecto: `google/gemini-3.1-flash-lite`.
 - **Modo Local / OpenCode (`local-cli`)**:
