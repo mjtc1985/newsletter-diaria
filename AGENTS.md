@@ -19,13 +19,14 @@ Proyecto: newsletter diaria técnica.
 PYTHONPATH=src python -m newsletter_diaria.main
 ```
 
-## IA / OpenCode
-- Agentes:
-- `.opencode/agent/newsletter-ranker.md` -> `google/gemini-3-pro-preview`
+## IA / Backend de Producción y Agentes
+- **Producción (Raspberry Pi)**: Ejecuta con `--llm-backend openai-compatible`:
+  - Apunta al **Home AI Core Gateway**: `NEWSLETTER_LLM_BASE_URL=http://localhost:5480/v1` (enrutado a OpenRouter).
+  - Modelo por defecto: `google/gemini-3.1-flash-lite`.
+- **Modo Local / OpenCode (`local-cli`)**:
+  - `.opencode/agent/newsletter-ranker.md` -> `google/gemini-3-pro-preview`
   - `.opencode/agent/newsletter-summarizer.md` -> `google/gemini-3-flash`
-- El backend local se llama `local-cli` y puede usar `opencode` o `gemini`.
-- Por defecto se usa `opencode`.
-- Si cambias agentes en `.opencode/agent/` y usas `opencode`, reinicia OpenCode.
+  - Si cambias agentes en `.opencode/agent/` y usas `opencode`, reinicia OpenCode.
 
 ## Politica editorial
 - Ventana de 72h (`--hours`) mas registro de enviados en `seen.json`: una fuente
