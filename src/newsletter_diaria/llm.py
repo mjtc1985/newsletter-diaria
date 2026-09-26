@@ -450,6 +450,10 @@ class OpenAICompatibleProvider:
                 headers={
                     "Authorization": f"Bearer {self.api_key}",
                     "Content-Type": "application/json",
+                    # Atribución en OpenRouter: el Home AI Gateway la reenvía, así el
+                    # gasto de la newsletter sale con su nombre y no como el gateway.
+                    "HTTP-Referer": "https://newsletter.psicologiaarena.es",
+                    "X-Title": "Newsletter Diaria",
                 },
                 method="POST",
             )
