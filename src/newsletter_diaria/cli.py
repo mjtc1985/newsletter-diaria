@@ -37,7 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--relax-floor-if-empty", action=argparse.BooleanOptionalAction, default=DEFAULT_EDITORIAL_POLICY.relax_floor_if_empty, help="Relax the importance floor when it would leave the edition empty")
     parser.add_argument("--relaxed-max-items", type=int, default=DEFAULT_EDITORIAL_POLICY.relaxed_max_items, help="Maximum items when the importance floor is relaxed")
     parser.add_argument("--llm-backend", choices=("local-cli", "openai-compatible"), default=os.getenv("NEWSLETTER_LLM_BACKEND", "openai-compatible"), help="LLM backend used for ranking and summaries")
-    parser.add_argument("--llm-cli-command", choices=("gemini", "opencode"), default=os.getenv("NEWSLETTER_LLM_CLI_COMMAND", "opencode"), help="CLI used by the local LLM backend")
+    parser.add_argument("--llm-cli-command", choices=("gemini", "opencode", "agy"), default=os.getenv("NEWSLETTER_LLM_CLI_COMMAND", "opencode"), help="CLI used by the local LLM backend")
+    parser.add_argument("--llm-fallback-backend", choices=("none", "local-cli", "openai-compatible"), default=os.getenv("NEWSLETTER_LLM_FALLBACK_BACKEND", "none"), help="Backend that retries a call when the main backend fails")
     parser.add_argument("--local-cli-model", default=os.getenv("NEWSLETTER_LOCAL_CLI_MODEL"), help="provider/model value for the local CLI backend")
     parser.add_argument("--opencode-ranker-agent", default="newsletter-ranker", help="opencode agent used for ranking")
     parser.add_argument("--opencode-summarizer-agent", default="newsletter-summarizer", help="opencode agent used for summaries")
@@ -79,7 +80,8 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
     backend = args.llm_backend
     if backend == "opencode":
         backend = "local-cli"
-    local_cli_model = args.local_cli_model if args.llm_cli_command == "gemini" else None
+    local_cli_model = args.local_cli_model if args.llm_cli_command in ("gemini", "agy") else None
+    fallback_backend = None if args.llm_fallback_backend == "none" else args.llm_fallback_backend
     return AppConfig(
         hours=args.hours,
         limit=args.limit,
@@ -104,6 +106,7 @@ def parse_args(argv: list[str] | None = None) -> AppConfig:
                 model=args.llm_model,
                 json_mode=args.llm_json_mode,
             ),
+            fallback_backend=fallback_backend,
         ),
         send_email=args.send_email,
         email_to=args.email_to,

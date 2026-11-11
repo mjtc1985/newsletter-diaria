@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import textwrap
 import time
 from pathlib import Path
@@ -28,6 +29,15 @@ FALLBACK_MODELS = [
     "gemini-flash-lite-latest",
     "gemini-3.6-flash",
 ]
+
+# Antigravity CLI (agy). `agy -p` no lee el prompt de stdin, así que va como
+# argumento, y Linux limita cada argumento a 128 KiB: por encima se falla antes de
+# llamar y entra el backend de respaldo. Medido en la Pi: un ranking de dos
+# artículos con gemini-4-argon-high tarda 20 s y ocupa unos 260 MB de RAM.
+AGY_MAX_PROMPT_BYTES = 120_000
+AGY_TIMEOUT_SECONDS = 300
+# agy es un agente con herramientas; aquí solo se quiere la respuesta.
+AGY_PROMPT_SUFFIX = "\n\nResponde directamente con el JSON. No uses herramientas ni crees ficheros."
 
 
 # Criterio del ranker. La versión anterior enumeraba "major releases, major AI
@@ -288,7 +298,7 @@ class OpenCodeProvider:
         return self._run_json(agent=self.config.summarizer_agent, prompt=prompt)
 
     def _cli_label(self) -> str:
-        return "Gemini CLI" if self.config.cli_command == "gemini" else "OpenCode"
+        return {"gemini": "Gemini CLI", "agy": "Antigravity CLI"}.get(self.config.cli_command, "OpenCode")
 
     def _run_json(self, agent: str, prompt: str) -> dict:
         if self.config.cli_command == "opencode":
@@ -296,6 +306,9 @@ class OpenCodeProvider:
 
         if self.config.cli_command == "gemini":
             return self._run_gemini_json(prompt)
+
+        if self.config.cli_command == "agy":
+            return self._run_agy_json(prompt)
 
         raise RuntimeError(f"Unsupported local LLM CLI: {self.config.cli_command}")
 
@@ -324,6 +337,73 @@ class OpenCodeProvider:
         if isinstance(data, dict) and isinstance(data.get("response"), str):
             return extract_json_object(data["response"])
         return data
+
+    def _run_agy_json(self, prompt: str) -> dict:
+        prompt = prompt + AGY_PROMPT_SUFFIX
+        prompt_bytes = len(prompt.encode("utf-8"))
+        if prompt_bytes > AGY_MAX_PROMPT_BYTES:
+            raise RuntimeError(f"Prompt too large for agy: {prompt_bytes} bytes")
+
+        cli_bin = resolve_cli_bin("agy")
+        command = [cli_bin, "--output-format", "json", "--sandbox"]
+        if self.config.model:
+            command.extend(["--model", self.config.model])
+        # Con `=` pegado, un prompt que empiece por '-' no se toma por otra opción.
+        command.append(f"--print={prompt}")
+
+        # Directorio vacío: el agente no tiene nada del proyecto que leer ni tocar.
+        with tempfile.TemporaryDirectory(prefix="newsletter-agy-") as workdir:
+            try:
+                completed = subprocess.run(
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    cwd=workdir,
+                    stdin=subprocess.DEVNULL,
+                    timeout=AGY_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(f"agy timed out after {AGY_TIMEOUT_SECONDS} s") from exc
+
+        try:
+            envelope = json.loads(completed.stdout)
+        except (json.JSONDecodeError, ValueError):
+            envelope = None
+        if completed.returncode != 0 or not isinstance(envelope, dict) or envelope.get("status") != "SUCCESS":
+            detail = envelope.get("error") if isinstance(envelope, dict) else None
+            raise RuntimeError((detail or completed.stderr or completed.stdout or "agy failed").strip())
+        response = envelope.get("response")
+        if not isinstance(response, str):
+            raise RuntimeError("agy returned no text response")
+        return extract_first_json_object(response)
+
+
+class FallbackProvider:
+    """Repite con el backend de respaldo cada llamada en la que falle el principal."""
+
+    def __init__(self, primary: LLMProvider, fallback: LLMProvider):
+        self.primary = primary
+        self.fallback = fallback
+
+    def preselect(self, items: list[Item], limit: int) -> dict:
+        return self._call("preselect", items, limit)
+
+    def rank(self, items: list[Item]) -> dict:
+        return self._call("rank", items)
+
+    def summarize_batch(self, ranked_ids: list[tuple[Item, int, int]]) -> dict:
+        return self._call("summarize_batch", ranked_ids)
+
+    def summarize_one(self, item: Item) -> dict:
+        return self._call("summarize_one", item)
+
+    def _call(self, method: str, *args: object) -> dict:
+        try:
+            return getattr(self.primary, method)(*args)
+        except Exception as exc:
+            logger.warning("Main LLM backend failed in %s (%s); retrying with the fallback backend", method, exc)
+            return getattr(self.fallback, method)(*args)
 
 
 class OpenAICompatibleProvider:
@@ -483,7 +563,14 @@ class OpenAICompatibleProvider:
 
 
 def build_provider(config: LLMConfig) -> LLMProvider:
-    if config.backend == "openai-compatible":
+    primary = build_backend(config.backend, config)
+    if config.fallback_backend and config.fallback_backend != config.backend:
+        return FallbackProvider(primary, build_backend(config.fallback_backend, config))
+    return primary
+
+
+def build_backend(backend: str, config: LLMConfig) -> LLMProvider:
+    if backend == "openai-compatible":
         return OpenAICompatibleProvider(config.openai_compatible)
     return OpenCodeProvider(config.opencode)
 
@@ -550,6 +637,21 @@ def extract_json_object(text: str) -> dict:
     repaired = re.sub(r'([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)(\s*:)', r'\1"\2"\3', repaired)
 
     return json.loads(repaired)
+
+
+def extract_first_json_object(text: str) -> dict:
+    """agy a veces repite el JSON: primero en un bloque ```json y luego en crudo.
+    extract_json_object va del primer '{' al último '}' y uniría los dos, así que
+    aquí se decodifica el primer objeto completo y se ignora lo que venga detrás."""
+    start = text.find("{")
+    if start != -1:
+        try:
+            data, _ = json.JSONDecoder().raw_decode(text, start)
+        except ValueError:
+            data = None
+        if isinstance(data, dict):
+            return data
+    return extract_json_object(text)
 
 
 def normalize_content(content: object) -> str:

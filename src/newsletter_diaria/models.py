@@ -88,6 +88,8 @@ class LLMConfig:
     backend: str
     opencode: OpenCodeConfig
     openai_compatible: OpenAICompatibleConfig
+    # Backend al que se repite una llamada si el principal falla. None: sin respaldo.
+    fallback_backend: str | None = None
 
 
 @dataclass(frozen=True)

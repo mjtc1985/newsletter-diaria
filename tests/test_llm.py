@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from newsletter_diaria.llm import OpenAICompatibleProvider, OpenCodeProvider
-from newsletter_diaria.models import OpenAICompatibleConfig, OpenCodeConfig
+from newsletter_diaria.llm import (
+    AGY_MAX_PROMPT_BYTES,
+    FallbackProvider,
+    OpenAICompatibleProvider,
+    OpenCodeProvider,
+    build_provider,
+)
+from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
 
 
 class OpenCodeCliTest(unittest.TestCase):
@@ -187,3 +194,82 @@ class PromptBuilderTest(unittest.TestCase):
         self.assertIn(expected_marker, run_json.call_args.kwargs["prompt"])
 
         self.assertIn(expected_marker, build_ranking_prompt({"items": []}))
+
+
+class AgyCliTest(unittest.TestCase):
+    def _provider(self, model: str | None = "gemini-4-argon-high") -> OpenCodeProvider:
+        return OpenCodeProvider(
+            OpenCodeConfig(cli_command="agy", model=model, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd())
+        )
+
+    def test_runs_sandboxed_in_an_empty_dir_and_reads_the_first_json(self) -> None:
+        # Respuesta real de agy: el JSON en un bloque ```json y repetido en crudo.
+        envelope = {
+            "status": "SUCCESS",
+            "response": '```json\n{"items": [{"uid": "a", "rank": 1}]}\n```\n{"items":[{"uid":"a","rank":1}]}\n',
+        }
+        completed = subprocess.CompletedProcess(args=["agy"], returncode=0, stdout=json.dumps(envelope), stderr="")
+        with patch("newsletter_diaria.llm.resolve_cli_bin", return_value="agy"), patch(
+            "newsletter_diaria.llm.subprocess.run", return_value=completed
+        ) as run:
+            result = self._provider()._run_json(agent="r", prompt="-rank these")
+
+        self.assertEqual(result, {"items": [{"uid": "a", "rank": 1}]})
+        command = run.call_args.args[0]
+        self.assertIn("--sandbox", command)
+        self.assertEqual(command[command.index("--model") + 1], "gemini-4-argon-high")
+        self.assertTrue(command[-1].startswith("--print=-rank these"))
+        self.assertNotEqual(Path(run.call_args.kwargs["cwd"]), Path.cwd())
+        self.assertIs(run.call_args.kwargs["stdin"], subprocess.DEVNULL)
+
+    def test_error_status_raises(self) -> None:
+        envelope = {"status": "ERROR", "error": "quota exhausted", "response": ""}
+        completed = subprocess.CompletedProcess(args=["agy"], returncode=1, stdout=json.dumps(envelope), stderr="")
+        with patch("newsletter_diaria.llm.resolve_cli_bin", return_value="agy"), patch(
+            "newsletter_diaria.llm.subprocess.run", return_value=completed
+        ):
+            with self.assertRaisesRegex(RuntimeError, "quota exhausted"):
+                self._provider()._run_json(agent="r", prompt="x")
+
+    def test_timeout_raises_runtime_error(self) -> None:
+        with patch("newsletter_diaria.llm.resolve_cli_bin", return_value="agy"), patch(
+            "newsletter_diaria.llm.subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="agy", timeout=1)
+        ):
+            with self.assertRaisesRegex(RuntimeError, "timed out"):
+                self._provider()._run_json(agent="r", prompt="x")
+
+    def test_oversized_prompt_fails_before_calling_agy(self) -> None:
+        with patch("newsletter_diaria.llm.subprocess.run") as run:
+            with self.assertRaisesRegex(RuntimeError, "too large"):
+                self._provider()._run_json(agent="r", prompt="x" * (AGY_MAX_PROMPT_BYTES + 1))
+        run.assert_not_called()
+
+
+class FallbackProviderTest(unittest.TestCase):
+    def _config(self, fallback: str | None) -> LLMConfig:
+        return LLMConfig(
+            backend="local-cli",
+            opencode=OpenCodeConfig(cli_command="agy", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+            openai_compatible=OpenAICompatibleConfig(base_url="https://x", api_key="k", api_key_env="K", model="m", json_mode=True),
+            fallback_backend=fallback,
+        )
+
+    def test_without_fallback_the_main_backend_is_used_alone(self) -> None:
+        self.assertIsInstance(build_provider(self._config(None)), OpenCodeProvider)
+
+    def test_main_backend_result_is_used_when_it_works(self) -> None:
+        provider = build_provider(self._config("openai-compatible"))
+        self.assertIsInstance(provider, FallbackProvider)
+        with patch.object(provider.primary, "rank", return_value={"from": "agy"}), patch.object(
+            provider.fallback, "rank"
+        ) as fallback_rank:
+            self.assertEqual(provider.rank([]), {"from": "agy"})
+        fallback_rank.assert_not_called()
+
+    def test_fallback_repeats_the_call_when_the_main_backend_fails(self) -> None:
+        provider = build_provider(self._config("openai-compatible"))
+        with patch.object(provider.primary, "summarize_batch", side_effect=RuntimeError("agy failed")), patch.object(
+            provider.fallback, "summarize_batch", return_value={"from": "gateway"}
+        ) as fallback_call:
+            self.assertEqual(provider.summarize_batch([]), {"from": "gateway"})
+        fallback_call.assert_called_once_with([])

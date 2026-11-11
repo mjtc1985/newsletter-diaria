@@ -308,8 +308,12 @@ discards and quotas still apply: only the numeric threshold gives way.
 
 The project supports two LLM backends:
 
-1. **Local CLI** (`opencode` or `gemini`)
+1. **Local CLI** (`opencode`, `gemini` or `agy`)
 2. **OpenAI-compatible API**
+
+Either one can have a fallback: with `--llm-fallback-backend` (or
+`NEWSLETTER_LLM_FALLBACK_BACKEND`) set to the other backend, every call that fails
+on the main backend is repeated on the fallback.
 
 ### Option A — Local CLI
 
@@ -319,6 +323,14 @@ You can switch between:
 
 - `NEWSLETTER_LLM_CLI_COMMAND=opencode`
 - `NEWSLETTER_LLM_CLI_COMMAND=gemini`
+- `NEWSLETTER_LLM_CLI_COMMAND=agy` (Antigravity CLI, signed in with a Google account)
+
+With `agy`, each call runs `agy --print=<prompt> --output-format json --sandbox` in an
+empty temporary directory, so the agent has nothing of the project to read or
+change. `agy -p` does not read the prompt from stdin, so prompts over 120 KB are
+rejected before calling it (Linux caps a single argument at 128 KiB), and a call
+is abandoned after 300 s. Both errors go to the fallback backend when one is set.
+`agy models` lists the models the account can use.
 
 Useful variables:
 
@@ -349,7 +361,8 @@ PYTHONPATH=src python -m newsletter_diaria.main \
 | --- | --- | --- |
 | `NEWSLETTER_LLM_BACKEND` | LLM family | `local-cli` |
 | `NEWSLETTER_LLM_CLI_COMMAND` | Local CLI to use | `opencode` |
-| `NEWSLETTER_LOCAL_CLI_MODEL` | Model name for the local CLI | unset for OpenCode; `gemini-3.1-pro-preview` for Gemini CLI |
+| `NEWSLETTER_LOCAL_CLI_MODEL` | Model name for the local CLI (Gemini CLI and `agy`) | unset for OpenCode; `gemini-3.1-pro-preview` for Gemini CLI |
+| `NEWSLETTER_LLM_FALLBACK_BACKEND` | Backend that retries a failed call (`none`, `local-cli`, `openai-compatible`) | `none` |
 | `NEWSLETTER_LLM_MODEL` | Model for OpenAI-compatible mode | unset |
 | `NEWSLETTER_LLM_BASE_URL` | OpenAI-compatible base URL | `https://api.openai.com/v1` |
 | `NEWSLETTER_LLM_API_KEY` | OpenAI-compatible API key | unset |
