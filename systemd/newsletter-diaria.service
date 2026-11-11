@@ -8,9 +8,16 @@ WorkingDirectory=/home/raspberry/newsletter-diaria
 StateDirectory=newsletter-diaria
 Environment=TMPDIR=/var/lib/newsletter-diaria
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=NEWSLETTER_LLM_BACKEND=openai-compatible
+# Principal: Antigravity CLI (agy) con la suscripción de Gemini. Respaldo: el
+# gateway de siempre, llamada a llamada, si agy falla o se pasa de tiempo.
+Environment=NEWSLETTER_LLM_BACKEND=local-cli
+Environment=NEWSLETTER_LLM_CLI_COMMAND=agy
+Environment=NEWSLETTER_LOCAL_CLI_MODEL=gemini-3.8-flash-medium
+Environment=NEWSLETTER_LLM_FALLBACK_BACKEND=openai-compatible
 Environment=NEWSLETTER_LLM_MODEL=gemini-3.1-flash-lite
-TimeoutStartSec=600
+# Con agy una edición tarda ~10,5 min (medido el 11/11/2026), frente a ~3 con
+# flash-lite: 600 s ya no llegaban.
+TimeoutStartSec=1200
 # El registro de enviados es estado operativo: vive en StateDirectory para que
 # un redespliegue o un git clean del repo no lo borre.
 ExecStart=/usr/bin/env PYTHONPATH=src python3 -m newsletter_diaria.main --send-email --ai-mode required --seen-file /var/lib/newsletter-diaria/seen.json

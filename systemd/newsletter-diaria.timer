@@ -1,8 +1,9 @@
 [Unit]
-Description=Ejecuta la newsletter diaria a las 09:00
+Description=Ejecuta la newsletter diaria a las 08:50
 
 [Timer]
-OnCalendar=*-*-* 09:00:00
+# 08:50 y no 09:00: con agy tarda ~10 min y así el correo sigue llegando a las 09:00.
+OnCalendar=*-*-* 08:50:00
 Persistent=true
 Unit=newsletter-diaria.service
 

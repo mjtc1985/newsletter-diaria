@@ -20,7 +20,19 @@ PYTHONPATH=src python -m newsletter_diaria.main
 ```
 
 ## IA / Backend de Producción y Agentes
-- **Producción (Raspberry Pi)**: Ejecuta con `--llm-backend openai-compatible`:
+- **Producción (Raspberry Pi), desde el 11/11/2026**: `local-cli` con **Antigravity CLI (`agy`)** y
+  `gemini-3.8-flash-medium`, con la suscripción de Gemini de Manuel. Lo fija la unidad de systemd.
+  - `agy` está en `~/.local/bin/agy` con la sesión de Google iniciada (se inicia con `agy` sin
+    argumentos por ssh: da una URL y pide el código). `agy models` lista los modelos disponibles.
+  - Cada llamada corre con `--sandbox` en un directorio temporal vacío (`llm.py`, `_run_agy_json`).
+    `agy -p` no lee el prompt de stdin: va como argumento, con tope de 120 KB y 300 s por llamada.
+  - Una edición tarda ~10,5 min (con flash-lite eran ~3): por eso el timer va a las 08:50 y
+    `TimeoutStartSec=1200`. Argon High es mucho más lento (~1 min por llamada) y se descartó.
+  - Respaldo: `NEWSLETTER_LLM_FALLBACK_BACKEND=openai-compatible`. Cada llamada que falle en `agy`
+    se repite contra el gateway de abajo, con el mismo prompt.
+  - Solo se resume lo que puede entrar en la edición: lo que pasa el umbral de importancia más
+    `relaxed_max_items` de reserva (`ranking.py`, `split_for_summary`).
+- **Respaldo (y producción hasta el 11/11/2026)**: `--llm-backend openai-compatible`:
   - Apunta al **Home AI Core Gateway**: `NEWSLETTER_LLM_BASE_URL=http://localhost:5480/v1` (enrutado a OpenRouter).
   - El gateway exige clave: `NEWSLETTER_LLM_API_KEY` en `.smtp.env` es la `GATEWAY_API_KEY` de la Pi (llavero, servicio `raspberry/home-assistant-stack`), que se manda como `Authorization: Bearer`.
   - Se identifica en OpenRouter con `HTTP-Referer: https://newsletter.psicologiaarena.es` y `X-Title: Newsletter Diaria` (`llm.py`); el gateway reenvía ambas. OpenRouter agrupa las apps por el origen del Referer, así que no lo cambies a un dominio compartido.
