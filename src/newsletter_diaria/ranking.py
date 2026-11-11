@@ -9,7 +9,7 @@ from dataclasses import replace
 
 from newsletter_diaria.ingest import cap_candidates
 from newsletter_diaria.llm import build_provider
-from newsletter_diaria.models import Item, LLMConfig, NewsletterDraft, RankedItem, Source
+from newsletter_diaria.models import EditorialPolicy, Item, LLMConfig, NewsletterDraft, RankedItem, Source
 from newsletter_diaria.sources import PRIORITY_WEIGHTS
 from newsletter_diaria.utils import text_value
 
@@ -20,7 +20,13 @@ logger = logging.getLogger("newsletter_diaria")
 DEGRADED_HEADLINE = "Resumen diario (modo básico, sin IA)"
 
 
-def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
+def build_newsletter(
+    items: list[Item],
+    ai_mode: str,
+    llm_config: LLMConfig,
+    sources_by_name: dict[str, Source],
+    policy: EditorialPolicy | None = None,
+) -> NewsletterDraft:
     if not items:
         return NewsletterDraft(headline="", items=[], trends=[])
 
@@ -38,7 +44,7 @@ def build_newsletter(items: list[Item], ai_mode: str, llm_config: LLMConfig, sou
         if llm_config.backend == "local-cli":
             backend_label = f"local-cli:{llm_config.opencode.cli_command}"
         logger.info("Using %s backend for ranking and summaries", backend_label)
-        return llm_rank_and_summarize(items, llm_config, sources_by_name)
+        return llm_rank_and_summarize(items, llm_config, sources_by_name, policy)
     except Exception as exc:
         if ai_mode == "required":
             print(f"[warn] LLM backend failed ({exc}); using heuristic ranking so the newsletter still ships.", file=sys.stderr)
@@ -107,7 +113,12 @@ def heuristic_rank(items: list[Item], sources_by_name: dict[str, Source]) -> lis
     ]
 
 
-def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name: dict[str, Source]) -> NewsletterDraft:
+def llm_rank_and_summarize(
+    items: list[Item],
+    config: LLMConfig,
+    sources_by_name: dict[str, Source],
+    policy: EditorialPolicy | None = None,
+) -> NewsletterDraft:
     provider = build_provider(config)
     heuristic_importance = False
     try:
@@ -129,7 +140,24 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
         kinds = {}
         heuristic_importance = True
 
-    summarized = summarize_ranked_items_batch(ranked_ids, provider)
+    # Con la nota del ranker, lo que queda por debajo del umbral no puede entrar
+    # en la edicion: resumirlo eran la mayoria de las llamadas al modelo. Con la
+    # nota heuristica el umbral no se aplica, asi que entonces se resume todo.
+    to_summarize, unsummarized = (
+        (ranked_ids, []) if heuristic_importance else split_for_summary(ranked_ids, policy)
+    )
+    if unsummarized:
+        logger.info(
+            "Summarizing %d of %d ranked items; %d below the importance floor keep the feed text",
+            len(to_summarize),
+            len(ranked_ids),
+            len(unsummarized),
+        )
+    summarized = summarize_ranked_items_batch(to_summarize, provider)
+    summarized += [
+        RankedItem(item=item, rank=rank, importance=importance, translated_title=None, summary=item.summary, why="", takeaway="")
+        for item, rank, importance in unsummarized
+    ]
     # El tema lo decide el ranker, que es quien ve la lista completa; se pega
     # despues de resumir para no arrastrarlo por toda la cadena de lotes.
     summarized = [
@@ -151,6 +179,31 @@ def llm_rank_and_summarize(items: list[Item], config: LLMConfig, sources_by_name
 
 
 SUMMARY_CHUNK_SIZE = 5
+
+
+def split_for_summary(
+    ranked_ids: list[tuple[Item, int, int]],
+    policy: EditorialPolicy | None,
+) -> tuple[list[tuple[Item, int, int]], list[tuple[Item, int, int]]]:
+    """Separa lo que hay que resumir de lo que el umbral ya deja fuera.
+
+    Se resume todo lo que llega al umbral y, si la politica puede relajarlo
+    cuando la edicion se quedaria vacia, tambien los relaxed_max_items mejor
+    clasificados de debajo: es lo que esa red de seguridad elegiria primero."""
+    if policy is None:
+        return ranked_ids, []
+    reserve = policy.relaxed_max_items if policy.relax_floor_if_empty else 0
+    below = sorted(
+        (entry for entry in ranked_ids if entry[2] < policy.min_importance),
+        key=lambda entry: (entry[1], -entry[2]),
+    )
+    reserved_uids = {item.uid for item, _, _ in below[:reserve]}
+    to_summarize = [
+        entry for entry in ranked_ids if entry[2] >= policy.min_importance or entry[0].uid in reserved_uids
+    ]
+    summarized_uids = {item.uid for item, _, _ in to_summarize}
+    unsummarized = [entry for entry in ranked_ids if entry[0].uid not in summarized_uids]
+    return to_summarize, unsummarized
 
 
 def summarize_ranked_items_batch(ranked_ids: list[tuple[Item, int, int]], provider) -> list[RankedItem]:

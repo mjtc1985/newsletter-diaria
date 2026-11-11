@@ -64,7 +64,7 @@ def run(config: AppConfig) -> int:
         items = enrich_items(items)
 
     try:
-        draft = build_newsletter(items, config.ai_mode, config.llm, source_index)
+        draft = build_newsletter(items, config.ai_mode, config.llm, source_index, config.editorial)
     except RuntimeError as exc:
         print(f"(x) {exc}", file=sys.stderr)
         return 1

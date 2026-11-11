@@ -484,3 +484,70 @@ class KindTest(unittest.TestCase):
         self.assertIn("cómo montamos", RANKING_RULES)
         self.assertIn("importance 35 o menos", RANKING_RULES)
         self.assertIn("45 o menos", RANKING_RULES)
+
+
+class SummarizeOnlyWhatCanEnterTest(unittest.TestCase):
+    """Lo que el ranker deja bajo el umbral no puede entrar: no se resume, salvo
+    la reserva que usaria la red de seguridad si la edicion quedara vacia."""
+
+    def _entry(self, uid: str, rank: int, importance: int) -> tuple[Item, int, int]:
+        item = Item(uid=uid, source="Test", title=f"Title {uid}", link=f"http://example.com/{uid}",
+                    published_at=datetime.now(timezone.utc), summary=f"Feed text {uid}")
+        return item, rank, importance
+
+    def _policy(self, relax: bool = True, reserve: int = 2):
+        from dataclasses import replace as dc_replace
+        from newsletter_diaria.models import DEFAULT_EDITORIAL_POLICY
+        return dc_replace(DEFAULT_EDITORIAL_POLICY, min_importance=40, relax_floor_if_empty=relax, relaxed_max_items=reserve)
+
+    def test_keeps_everything_above_the_floor_and_the_best_below(self) -> None:
+        from newsletter_diaria.ranking import split_for_summary
+        ranked = [self._entry("a", 1, 90), self._entry("b", 2, 50), self._entry("c", 3, 39),
+                  self._entry("d", 4, 30), self._entry("e", 5, 20), self._entry("f", 6, 10)]
+        to_summarize, unsummarized = split_for_summary(ranked, self._policy(reserve=2))
+        self.assertEqual([e[0].uid for e in to_summarize], ["a", "b", "c", "d"])
+        self.assertEqual([e[0].uid for e in unsummarized], ["e", "f"])
+
+    def test_no_reserve_when_the_floor_never_relaxes(self) -> None:
+        from newsletter_diaria.ranking import split_for_summary
+        ranked = [self._entry("a", 1, 90), self._entry("b", 2, 30)]
+        to_summarize, unsummarized = split_for_summary(ranked, self._policy(relax=False))
+        self.assertEqual([e[0].uid for e in to_summarize], ["a"])
+        self.assertEqual([e[0].uid for e in unsummarized], ["b"])
+
+    def test_without_policy_everything_is_summarized(self) -> None:
+        from newsletter_diaria.ranking import split_for_summary
+        ranked = [self._entry("a", 1, 90), self._entry("b", 2, 10)]
+        self.assertEqual(split_for_summary(ranked, None), (ranked, []))
+
+    def test_rank_and_summarize_skips_the_model_below_the_floor(self) -> None:
+        from pathlib import Path
+        from newsletter_diaria.models import LLMConfig, OpenAICompatibleConfig, OpenCodeConfig
+        from newsletter_diaria.ranking import llm_rank_and_summarize
+
+        items = [self._entry(uid, 0, 0)[0] for uid in ("a", "b", "c")]
+        config = LLMConfig(
+            backend="openai-compatible",
+            opencode=OpenCodeConfig(cli_command="opencode", model=None, ranker_agent="r", summarizer_agent="s", cwd=Path.cwd()),
+            openai_compatible=OpenAICompatibleConfig(base_url="http://example.com", api_key="k", api_key_env="K", model="m", json_mode=True),
+        )
+        provider = MagicMock()
+        provider.rank.return_value = {"items": [
+            {"uid": "a", "rank": 1, "importance": 90},
+            {"uid": "b", "rank": 2, "importance": 30},
+            {"uid": "c", "rank": 3, "importance": 10},
+        ]}
+        provider.summarize_batch.return_value = {"items": [
+            {"uid": uid, "title": f"T {uid}", "summary": f"S {uid}", "why": "W"} for uid in ("a", "b")
+        ]}
+
+        with patch("newsletter_diaria.ranking.build_provider", return_value=provider):
+            draft = llm_rank_and_summarize(items, config, {}, self._policy(reserve=1))
+
+        sent_uids = [item.uid for item, _, _ in provider.summarize_batch.call_args.args[0]]
+        self.assertEqual(sent_uids, ["a", "b"])
+        provider.summarize_one.assert_not_called()
+        by_uid = {entry.item.uid: entry for entry in draft.items}
+        self.assertEqual(set(by_uid), {"a", "b", "c"})
+        self.assertEqual(by_uid["c"].summary, "Feed text c")
+        self.assertEqual(by_uid["c"].why, "")
